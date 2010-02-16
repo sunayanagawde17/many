@@ -1,0 +1,96 @@
+<?xml version="1.0" ?>
+<project default="main">
+
+<!-- ===================================== -->
+<!--     Global properties                 -->
+<!-- ===================================== -->
+	<property name="name" value="MANY" />
+	<property name="build" value="${basedir}/build" />
+	<property name="src" value="${basedir}/src" />
+	<property name="lib" value="${basedir}/lib" />
+	<property name="wordnet" value="${lib}/jaws-bin.jar" />
+	
+	<path id="javac.classpath">
+			<pathelement location="${wordnet}"/>
+	</path>
+	
+	
+  <target name="main" depends="compile, jar" description="Main target">
+    <echo>
+      Construction du fichier .jar.
+    </echo>
+  </target>
+
+	
+<!-- ===================================== -->
+<!--     Init                              -->
+<!-- ===================================== -->
+	<target name="init" >
+		<tstamp />
+		<mkdir dir="${build}" />
+		<mkdir dir="${lib}" />
+	</target>
+
+<!-- ===================================== -->
+<!--     Compile                           -->
+<!-- ===================================== -->
+	<target name="compile" depends="init" >
+		<echo> Copying JAWS </echo>
+		<copy todir="${build}/edu">
+			<fileset dir="${lib}/edu"/>
+		</copy>
+		<echo> Copying sleepycat </echo>
+		<copy todir="${build}/com/sleepycat">
+			<fileset dir="${lib}/com/sleepycat"/>
+		</copy>
+		<!-- <javac srcdir="${source}" destdir="${build}" target="1.5" source="1.5" nowarn="off" /> -->
+		<javac srcdir="${src}" destdir="${build}" nowarn="off" debug="on" optimize="on">
+		  		<classpath refid="javac.classpath"/>
+		  		<compilerarg value="-Xlint"/>
+		  	</javac>
+	</target>
+
+<!-- ===================================== -->
+<!--     JavaDoc                           -->
+<!-- ===================================== -->
+<!--	<target name="javadoc" depends="compile" >
+			<javadoc sourcepath="${src}" destdir="${api}"
+				packagenames="com.aag.*"/>
+		</target> -->
+
+<!-- ===================================== -->
+<!--     Jar and Copy                      -->
+<!-- ===================================== -->
+	<target name="jar" depends="compile" >
+		<jar jarfile="${lib}/${name}.jar" >
+			<fileset dir="${build}" />
+			<!-- <zipfileset src="${terp}" />
+			<zipfileset src="${decoder}" /> -->
+		</jar>
+	</target>
+
+<!-- ===================================== -->
+<!--     Encrypt                           -->
+<!-- ===================================== -->
+<!--	<target name="encrypt" depends="jar">
+			<crypto keyFile="key.ser"
+					inputFile="${dist}/${name}.jar"
+					outputFile="${dist}/${name}.secret.jar" />
+			<copy todir="${ftp}" file="${dist}/${name}secret.jar" />
+		</target> -->
+
+<!-- ===================================== -->
+<!--     Remove build directories          -->
+<!-- ===================================== -->
+	<target name="clean" >
+		<delete dir="${build}" />
+		<delete dir="${lib}" />
+	</target>
+
+</project>
+
+
+
+	
+
+

@@ -1,0 +1,10 @@
+name cn1best
+numaligns 7
+
+align 0 Would 0.5 Do 0.25 Have 0.25 
+align 1 you 1.0 
+align 2 like 0.4 NULL 0.0 
+align 3 tea 0.25 NULL 0.0 coffee 0.4 
+align 4 love 0.1 NULL 0.0 or 0.65 
+align 5 Coffee 0.35 tea 0.65 
+align 6 ? 1.0 

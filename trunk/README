@@ -1,0 +1,90 @@
+
+	MANY - Open Source Machine Translation System Combination
+	
+AUTHORS	
+	Loïc BARRAULT - LIUM, University of Le Mans
+
+THANKS	
+
+	CMU and LIUM for having done a great job with the Open Source Sphinx library.
+	More particularly Paul Deléglise and Yannick Estève for their help using it.
+	M. Snover for having released the TERp software as Open Source.
+
+
+PACKAGE CONTENT
+
+  - Main software : MANY is written in Java and make use of TERp and Sphinx4
+  - Scripts :
+  	MANY.sh : The main script.
+	add_id.sh : add id to 1-best output files (must be in the PATH or set in MANY.sh)
+	genSphinxConfig.sh : to generate the config file (must be in the PATH or set in MANY.sh)
+
+INSTALL
+
+  - Compiling MANY :
+
+To compile this software, a config file 'build.xml' for ant is provided.
+Just run 'ant' (or 'ant -f build.xml') in the 'many' directory.
+The library 'MANY.jar' will be available in the 'lib' directory.
+
+  - Copying scripts : 
+The scripts provided are the following : MANY.sh, add_id.sh and genSphinx4Config.pl.
+User must ensure that the last two scripts are accessible to MANY.sh
+
+
+USE
+
+  - Prepare experiment : Several variables have to be set in order to run an experiment with MANY. They are all in MANY.sh
+  
+########### VARIABLES DEFINITION
+# Tools
+bin_dir=$HOME/bin 				: where to find the tools
+add_id=$bin_dir/add_id.sh			: path to the script for adding IDs to hypotheses.
+gen_sphinx_config=$bin_dir/genSphinxConfig.pl	: path to the script for generating Sphinx Config file.
+many=$bin_dir/MANY.jar				: path to the jar file containing the main program
+
+# Files
+many_config="many.config.xml"		: name of the config file for MANY
+terp_params="terp.params"		: name of the config file for TERp (even if included in MANY, I did not changed the format)
+vocab="lm.vocab"			: the file containing the vocabulary of the LM (typically 1 word per line)
+output="output.many"			: the output file
+current_dir=`pwd`
+working_dir="syscomb"			: the directory where the combination will be done
+hypotheses=("out1" "out2" "out3")	: the list of 1-best hypotheses files
+priors=(0.4000 0.4000 0.2000)		: the prior probabilities used in the lattice (they are associated with the corresponding hypotheses file)
+
+nb_sys=${#hypotheses[@]}
+
+lmserverhost=TO_SET				: the server hosting the lm-server (with SRILM). This server must be launch as following : ngram -lm <LM_file> -server-port 1324 -unk
+lmserverport=TO_SET			: the port to connect to.
+
+fudge=0.2				: the fudge used in the decoder. WARNING : THIS VALUE IS MULTIPLIED BY 10 IN THE SOFT !
+null=0.3				: the null penalty applied when crossing a null-arc
+length=0.5				: the length penalty. WARNING : THIS VALUE IS MULTIPLIED BY 10 IN THE SOFT !
+#costs=(del stem syn ins sub match shift)
+costs=(1.0 1.0 1.0 1.0 1.0 0.0 1.0)	: the TERp costs : deletion stem synonym insertion substitution match shift 
+clean=1					: set to 1 for cleaning working directory
+
+
+  - Launch experiment : just run MANY.sh !
+
+
+
+KNOWN BUGS
+ - Empty lines in hypotheses files provoke an error. -> This is now fixed ! (02/2010)
+
+
+RELATED WORK
+
+	Sphinx4 	:	http://cmusphinx.sourceforge.net/sphinx4/  
+	TERp		:	http://www.umiacs.umd.edu/~snover/terp/ 
+	SRILM		:	http://www.speech.sri.com/projects/srilm/ 
+
+COPYING / LICENSE
+	See LICENSE.txt file provided along with this software.
+
+BUGS	
+	For help or more information, contact loic [dot] barrault [at] lium [dot] univ-lemans [dot] fr
+
+
+
