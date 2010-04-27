@@ -1,0 +1,38 @@
+
+
+27 Apr 2010
+
+MANY updates : 
+ A. MANY now uses the new version of Sphinx4. 
+    1. LanguageModelOnServer class has been replaced by NetworkLanguageModel (working is the same). 
+    2. Scripts for generating MANY configuration has been modified to reflect the changes (see gen_MANY_config.pl in scripts directory).
+    3. LargeNGramModel class can now be used to load ngram LM (whatever is n) instead of NetworkLanguageModel
+
+ B. Multithreading
+    1. Multithreading has been included in MANY so that Confusion Networks can be created in parallel.
+    2. A new variable has appeared in MANY.sh : nb_threads. If its value is greater than 1 then multithreding will operate.
+
+ C. Parameter optimization
+    1. Several scripts can now be used to optimize parameters with CONDOR. CONDOR optimizer can be found on the tools directory.
+        1.1 Tuning all parameters together : 
+            - Optimize_MANY_template.sh
+            - gen_MANY_config.pl
+        1.2 Tuning parameters in 2-steps
+            a. TERp parameters optimization (deletion, stem, synonyms, insertion, substitution and shift)
+                - Optimize_MANYterp_template.sh : 
+this actually calls MANYterp and calculate the sum of TERp values between one or several references and the confusion networks.
+
+                - Optimize_MANYbleu_template.sh : 
+this actually call MANYbleu and calculate the sum of an approximation of BLEU between one or several references and the confusion networks.
+
+            b. Decoder parameters optimization (fudge factor, null and length penalties).
+                - Optimize_MANYdecode_template.sh : 
+this actually call MANYdecode; It loads the CN obtained with a parameters optimized at the first step and tune the decoder parameters. 
+ 
+ D. Other updates
+    1. 
+
+*****
+
+16 Feb 2010 : First commit.
+

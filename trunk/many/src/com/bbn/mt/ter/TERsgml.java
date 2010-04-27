@@ -850,7 +850,7 @@ public class TERsgml {
       if(tag.name.equalsIgnoreCase("tstset") ||
          tag.name.equalsIgnoreCase("refset")) {
 		is_sgml = true;
-		Element root = (Element) document.createElement(tag.name);
+		Element root = document.createElement(tag.name);
 		document.appendChild(root);
 		cur_element = root;
 		Iterator attrs = (tag.content.keySet()).iterator();
@@ -1059,6 +1059,7 @@ public class TERsgml {
 		    }
           }
 	    }
+	    break;
       case WORD:
 	    break;
       default:

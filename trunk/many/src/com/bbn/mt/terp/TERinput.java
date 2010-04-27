@@ -1,9 +1,7 @@
 package com.bbn.mt.terp;
 import java.io.BufferedReader;
-import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -15,7 +13,6 @@ import java.util.TreeSet;
 import java.util.Vector;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
 import org.w3c.dom.Document;
 public class TERinput
 {
@@ -24,6 +21,9 @@ public class TERinput
 	// private LinkedHashMap refsegs = new LinkedHashMap();
 	// private HashMap tokrefsegs = new HashMap();
 	// private LinkedHashMap reflensegs = null;
+	
+	private static boolean DEBUG = false;
+	
 	protected boolean ignore_setid = false;
 	protected int in_hyp_format = 0;
 	protected int in_ref_format = 0;
@@ -43,6 +43,7 @@ public class TERinput
 	private List<String[]> tok_data = new ArrayList<String[]>();
 	private int numdata = 0;
 	protected int max_num_refs = 0;
+	protected TERpara params = null;
 	
 	private int add_sen(String sen)
 	{
@@ -146,7 +147,8 @@ public class TERinput
 		{
 			for (TERid tid : getHypIds(sysid, plainid))
 			{
-				if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP))
+				//if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP))
+				if (params.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)
 						&& (!hasHypSeg(tid)))
 				{
 					System.err.println("WARNING TERinput.getAllHyps : no hypothesis for system "+sysid+ " ... skipping ...");
@@ -179,9 +181,10 @@ public class TERinput
 		{
 			for (TERid tid : getHypIds(sysid, plainid))
 			{
-				if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP))
-						&& (!hasHypSeg(tid)))
-				{
+				//if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP))
+					//	&& (!hasHypSeg(tid)))
+				if ((params.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP))
+						&& (!hasHypSeg(tid))){
 					System.err.println("WARNING TERinput.getAllHypsTok : no hypothesis for system "+sysid+ " ... skipping ...");
 					continue;
 				}
@@ -320,6 +323,7 @@ public class TERinput
 			allSegIds.put(pid, idhs);
 		}
 		idhs.add(id);
+		
 		if (type == STYPE.HYP)
 		{
 			sysids.add(id.sys_id);
@@ -346,6 +350,7 @@ public class TERinput
 			}
 			lidhs.add(id);
 		}
+		
 		HashMap<TERid, List<Integer>> hm;
 		switch (type)
 		{
@@ -371,27 +376,35 @@ public class TERinput
 		lst.add(seg_i);
 		return;
 	}
-	public TERinput()
+	protected TERinput()
 	{
 	}
-	public TERinput(String hyp_fn, String ref_fn, boolean ignore_setid)
+	//public TERinput(String hyp_fn, String ref_fn, boolean ignore_setid)
+	public TERinput(String hyp_fn, String ref_fn, TERpara params)
 	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		load_hyp(hyp_fn);
 		load_ref(ref_fn);
 	}
+	//public TERinput(String hyp_fn, String ref_fn, String reflen_fn, boolean ignore_setid)
 	public TERinput(String hyp_fn, String ref_fn, String reflen_fn,
-			boolean ignore_setid)
+			TERpara params)
 	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		load_hyp(hyp_fn);
 		load_ref(ref_fn);
 		load_len(reflen_fn);
 	}
 	public TERinput(String[] hyp_fn, String ref_fn, String reflen_fn,
-			boolean ignore_setid)
+			TERpara params)
 	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		for(String hfn : hyp_fn)
 			load_hyp(hfn);
 		load_ref(ref_fn);
@@ -469,7 +482,7 @@ public class TERinput
 			}
 		}
 	}
-	protected static int load_file(String fn, Map<TERid, List<String>> segs)
+	public static int load_file(String fn, Map<TERid, List<String>> segs)
 	{
 		int form = 0;
 		if ((fn == null) || (fn.equals("")))
@@ -479,7 +492,8 @@ public class TERinput
 		if (doc == null)
 		{
 			load_trans_segs(fn, segs);
-			System.out.println("INFO TERinput.load_file : \"" + fn
+			if(DEBUG)
+				System.out.println("INFO TERinput.load_file : \"" + fn
 					+ "\" was successfully parsed as Trans text");
 			form = 1;
 		}

@@ -66,13 +66,15 @@ public class TERalignment
 	public int numSyn = 0;
 	public int numSft = 0;
 	public int numWsf = 0;
+	TERpara params = null;
 	
-	public TERalignment()
+	protected TERalignment()
 	{
 	}
-	public TERalignment(TERcost costfunc)
+	public TERalignment(TERcost costfunc, TERpara params)
 	{
 		this.costfunc = costfunc;
+		this.params = params;
 	}
 	public TERalignment(TERalignment ot)
 	{
@@ -99,6 +101,7 @@ public class TERalignment
 		this.numWsf = ot.numWsf;
 		this.numMatch = ot.numMatch;
 		this.costfunc = ot.costfunc;
+		this.params = ot.params;
 	}
 	public String toString()
 	{
@@ -339,7 +342,7 @@ public class TERalignment
 			return 1.0;
 		if (numWords <= 0.0)
 			return 0.0;
-		if (((Boolean) TERpara.para().get(TERpara.OPTIONS.CAP_TER))
+		if ((params.para().get_boolean(TERpara.OPTIONS.CAP_TER))
 				&& (numEdits > numWords))
 			return 1.0;
 		return (double) numEdits / numWords;

@@ -22,7 +22,10 @@ public class OptimizeTER
 		System.out.println("Optimize TERp Parameters:\n" + "---------------------------------------------\n"
 				+ TEROptPara.para().outputPara() + "\n\n");
 
-		TERpara.para().readPara(TEROptPara.para().get_string(TEROptPara.OPTIONS.TERP_PARAM));
+		//TERpara.para().readPara(TEROptPara.para().get_string(TEROptPara.OPTIONS.TERP_PARAM));
+		String[] args_terp = {"-p", "terp.params"};
+		TERpara params = new TERpara(args_terp);
+		params.para().readPara(TEROptPara.para().get_string(TEROptPara.OPTIONS.TERP_PARAM));
 		OptimizeTER ot = new OptimizeTER();
 
 		ot.set_hj_type(TEROptPara.para().get_string(TEROptPara.OPTIONS.HJ_TYPE));

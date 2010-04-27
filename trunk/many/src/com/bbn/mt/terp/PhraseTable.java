@@ -1,33 +1,61 @@
 package com.bbn.mt.terp;
-import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.TreeSet;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.Comparator;
-import java.util.Arrays;
-import java.util.HashSet;
-
-import com.bbn.mt.terp.phrasedb.PhraseEntry;
+import java.util.TreeMap;
 import com.bbn.mt.terp.phrasedb.PhraseDB;
+import com.bbn.mt.terp.phrasedb.PhraseEntry;
+
 public class PhraseTable
 {
+	private static enum ADJUST_FUNC
+	{
+		NONE,
+		/*
+		 * LENGTH_BINS, NED_BINS, LIN, LIN_NED, LOG, LOG10, LOG_NED, LOG10_NED,
+		 * STDLOG, STDLOG2, NED,
+		 */
+		STD, STDINV, STDNONED, STDINVNONED
+	}
+	private ADJUST_FUNC adjust_func = ADJUST_FUNC.NONE;
+	private TERcalc adjust_tercalc = null;
+	private double adjust_min = Double.NEGATIVE_INFINITY;
+	private double adjust_max = Double.POSITIVE_INFINITY;
+	private double[] adjust_params = null;
+	private boolean adjust_need_nedits = false;
+	private boolean sum_dup_phrases = false;
+	// keys are ArrayList[Comparable word_a, Comparable word_b]
+	// word_a and word_b can also be null. They can't both be null
+	// vals are ArrayList[Double cost, HashMap next]
+	// cost is null if this is not a termination point
+	// next is null if this is a leaf
+	// they can't both be null
+	protected PhraseTree fullTree = new PhraseTree();
+	protected PhraseTree curTree = null;
+	protected Comparable<TERid> curKey = null;
+	protected HashMap<Comparable<TERid>, PhraseTree> rootmap = new HashMap<Comparable<TERid>, PhraseTree>();
+	protected long searchTime = 0;
+	protected long dbFetchTime = 0;
+	protected long insertTime = 0;
+	private static final double _log10 = Math.log(10);
+	private PhraseDB phrasedb = null;
+	
 	public PhraseTable()
 	{
 	}
-	private PhraseDB phrasedb = null;
 	public PhraseTable(PhraseDB db)
 	{
 		this.phrasedb = db;
 	}
-	public Comparable getCurKey()
+	public Comparable<TERid> getCurKey()
 	{
 		return this.curKey;
 	}
-	public boolean setKey(Comparable key)
+	public boolean setKey(Comparable<TERid> key)
 	{
 		if (key == null)
 		{
@@ -39,7 +67,7 @@ public class PhraseTable
 		this.curTree = rootmap.get(key);
 		return (this.curTree != null);
 	}
-	public int add_phrases(String[][] ref, String[][] hyp, Comparable key)
+	public int add_phrases(String[][] ref, String[][] hyp, Comparable<TERid> key)
 	{
 		if (key == null)
 			return 0;
@@ -70,8 +98,8 @@ public class PhraseTable
 	 * those ArrayLists is 3 elements long 0: int - Length of first match 1: int
 	 * - Length of second match 2: Double - Cost
 	 **/
-	public ArrayList retrieve_all(Comparable[] seq_a, int ind_a,
-			Comparable[] seq_b, int ind_b)
+	public ArrayList retrieve_all(Comparable<String>[] seq_a, int ind_a,
+			Comparable<String>[] seq_b, int ind_b)
 	{
 		if (curTree == null)
 		{
@@ -109,8 +137,8 @@ public class PhraseTable
 		this.searchTime += (endTime - startTime);
 		return pc;
 	}
-	public PhraseTree.phrase_cost retrieve_exact(Comparable[][] seq_a,
-			int start_a, int len_a, Comparable[] seq_b, int start_b, int len_b)
+	public PhraseTree.phrase_cost retrieve_exact(Comparable<String>[][] seq_a,
+			int start_a, int len_a, Comparable<String>[] seq_b, int start_b, int len_b)
 	{
 		long startTime = System.nanoTime();
 		PhraseTree.phrase_cost pc = fullTree.retrieve_exact(seq_a, start_a,
@@ -140,7 +168,7 @@ public class PhraseTable
 			func = "NONE";
 		if (adjust_func_names.containsKey(func))
 		{
-			adjust_func_spec afs = (adjust_func_spec) adjust_func_names
+			adjust_func_spec afs = adjust_func_names
 					.get(func);
 			if ((afs.num_params > 0)
 					&& ((adjust_params == null) || (adjust_params.length != afs.num_params)))
@@ -177,17 +205,17 @@ public class PhraseTable
 				+ "    log_10 refers to log base 10 in these equations.";
 		return tr;
 	}
-	private static final double _log10 = Math.log(10);
+	
 	private static double log10(double d)
 	{
 		return Math.log(d) / _log10;
 	}
-	private static double ln(double d)
+	/*private static double ln(double d)
 	{
 		return Math.log(d);
-	}
+	}*/
 	private PhraseTree.phrase_cost adjust_cost(PhraseTree.phrase_cost phcost,
-			Comparable[] seq_a, Comparable[] seq_b)
+			Comparable<String>[] seq_a, Comparable<String>[] seq_b)
 	{
 		double numedit = 0;
 		int maxlen = ((seq_a.length > seq_b.length)
@@ -273,7 +301,7 @@ public class PhraseTable
 	// Runs the current adjust function over the entire phrase table
 	public void adjust_all()
 	{
-		for (Comparable key : rootmap.keySet())
+		for (Comparable<TERid> key : rootmap.keySet())
 		{
 			setKey(key);
 			PhraseTree.Iter it = this.getIter();
@@ -301,11 +329,11 @@ public class PhraseTable
 		}
 		return num;
 	}
-	private boolean insert(Comparable[] seq_a, Comparable[] seq_b, double cost)
+	private boolean insert(Comparable<String>[] seq_a, Comparable<String>[] seq_b, double cost)
 	{
 		return insert(seq_a, seq_b, new PhraseTree.phrase_cost(cost));
 	}
-	private boolean insert(Comparable[] seq_a, Comparable[] seq_b,
+	private boolean insert(Comparable<String>[] seq_a, Comparable<String>[] seq_b,
 			PhraseTree.phrase_cost cost)
 	{
 		if ((seq_a == null) || (seq_b == null))
@@ -376,19 +404,7 @@ public class PhraseTable
 		}
 		return curTree.getIter();
 	}
-	// keys are ArrayList[Comparable word_a, Comparable word_b]
-	// word_a and word_b can also be null. They can't both be null
-	// vals are ArrayList[Double cost, HashMap next]
-	// cost is null if this is not a termination point
-	// next is null if this is a leaf
-	// they can't both be null
-	protected PhraseTree fullTree = new PhraseTree();
-	protected PhraseTree curTree = null;
-	protected Comparable curKey = null;
-	protected HashMap<Comparable, PhraseTree> rootmap = new HashMap();
-	protected long searchTime = 0;
-	protected long dbFetchTime = 0;
-	protected long insertTime = 0;
+
 	private static class adjust_func_spec
 	{
 		public adjust_func_spec(ADJUST_FUNC func, String name,
@@ -418,7 +434,7 @@ public class PhraseTable
 		public String formula;
 		public int num_params; // negative will mean any number is allowed
 	}
-	private static TreeMap adjust_func_names = new TreeMap();
+	private static TreeMap<String, adjust_func_spec> adjust_func_names = new TreeMap<String, adjust_func_spec>();
 	static
 	{
 		adjust_func_names.put("NONE", new adjust_func_spec(ADJUST_FUNC.NONE,
@@ -480,22 +496,7 @@ public class PhraseTable
 				"NEWCOST = a + (b * log_10(1.0-%COST%))"
 						+ " + (c * (1.0 - %COST%))"));
 	}
-	private static enum ADJUST_FUNC
-	{
-		NONE,
-		/*
-		 * LENGTH_BINS, NED_BINS, LIN, LIN_NED, LOG, LOG10, LOG_NED, LOG10_NED,
-		 * STDLOG, STDLOG2, NED,
-		 */
-		STD, STDINV, STDNONED, STDINVNONED
-	}
-	private ADJUST_FUNC adjust_func = ADJUST_FUNC.NONE;
-	private TERcalc adjust_tercalc = null;
-	private double adjust_min = Double.NEGATIVE_INFINITY;
-	private double adjust_max = Double.POSITIVE_INFINITY;
-	private double[] adjust_params = null;
-	private boolean adjust_need_nedits = false;
-	private boolean sum_dup_phrases = false;
+	
 	public void set_sum_dup_phrases(boolean b)
 	{
 		sum_dup_phrases = b;
@@ -577,8 +578,8 @@ public class PhraseTable
 		}
 		return adjust_params.length;
 	}
-	public void get_wgt_phrase(int startind, double[] wgt, Comparable[] hyp,
-			int hstart, int hlen, Comparable[] ref, int rstart, int rlen)
+	public void get_wgt_phrase(int startind, double[] wgt, Comparable<String>[] hyp,
+			int hstart, int hlen, Comparable<String>[] ref, int rstart, int rlen)
 	{
 		// Lookup phrase...
 		PhraseTree.phrase_cost pc = fullTree.retrieve_exact(ref, rstart, rlen,

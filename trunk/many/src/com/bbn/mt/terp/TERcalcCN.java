@@ -19,9 +19,9 @@ import java.util.TreeSet;
 
 public class TERcalcCN extends TERcalc
 {
-	public TERcalcCN(TERcost costfunc)
+	public TERcalcCN(TERcost costfunc, TERpara params)
 	{
-		super(costfunc);
+		super(costfunc, params);
 	}
 	// Turn on if you want a lot of debugging info.
 	static final private boolean DEBUG = false;
@@ -38,58 +38,79 @@ public class TERcalcCN extends TERcalc
 		boolean first = true;
 		ArrayList<ArrayList<Comparable<String>>> cn = costfunc.process_input_cn(ref);
 		ArrayList<ArrayList<Float>> cn_scores = costfunc.process_input_cn(ref_scores);
-		
-		//compute MinEditDistance from each hyp  to the ref and order the hypotheses with the TER score
-		if(DEBUG)
-			System.err.println("Reference is : "+TERutilities.join(" ", ref));
-		
-		ArrayList<TERutilities.Index_Score> idxScores = new ArrayList<TERutilities.Index_Score>();
-		for (int i = 0; i < hyps.size(); i++)
+
+		// compute MinEditDistance from each hyp to the ref and order the
+		// hypotheses with the TER score
+		if (DEBUG)
 		{
-			if(DEBUG)
-				System.err.println("Eval of hyp #"+i+" : "+TERutilities.join(" ", hyps.get(i))+" -> ");
+			System.err.println("TERcalcCN::TERcn : Reference is : " + TERutilities.join(" ", ref));
+		}
+
+		ArrayList<TERutilities.Index_Score> idxScores = new ArrayList<TERutilities.Index_Score>();
+
+		int[] hyps_idx = params.para().get_integerlist(TERpara.OPTIONS.HYP_IDX);
+
+		for (int i = 0; i < hyps_idx.length; i++)
+		{
+			if (DEBUG)
+				System.err.println("Eval of hyp #" + i + " : " + TERutilities.join(" ", hyps.get(i)) + " -> ");
 			Comparable<String>[] pphyp = costfunc.process_input_hyp(hyps.get(i));
-			Comparable<String>[] ppref = costfunc.process_input_hyp(ref);
+			Comparable<String>[] ppref = costfunc.process_input_ref(ref);
 			TERalignment cur_align = MinEditDist(pphyp, ppref);
-			
+
 			idxScores.add(new TERutilities.Index_Score(i, cur_align.score()));
-			
-			if(DEBUG) 
-				System.err.println(" -> Score : "+idxScores.get(i).score);
+
+			if (DEBUG)
+				System.err.println(" -> Score : " + idxScores.get(i).score);
 		}
 		Collections.sort(idxScores);
-		
-		for (int i = 0; i < hyps.size(); i++)
+
+		for (int i = 0; i < idxScores.size(); i++)
 		{
-			int hyp_idx = idxScores.get(i).index;
-			if(DEBUG)
-				System.err.println("Incremental add of hyp #"+hyp_idx+" : "+TERutilities.join(" ", hyps.get(hyp_idx)));
-			Comparable<String>[] pphyp = costfunc.process_input_hyp(hyps.get(hyp_idx));
-			if ((cn.size() == 0) || (pphyp.length == 0))
+			int hyp_idx = hyps_idx[idxScores.get(i).index];
+			if (DEBUG)
+				System.err.println("Incremental add of hyp #" + hyp_idx + " : "
+						+ TERutilities.join(" ", hyps.get(idxScores.get(i).index)));
+			Comparable<String>[] pphyp = costfunc.process_input_hyp(hyps.get(idxScores.get(i).index));
+			if (cn.size() == 0)
+			{
+				if (DEBUG)
+					System.err.println("Size of CN is 0");
 				continue;
+			}
+			else if (pphyp.length == 0)
+			{
+				if (DEBUG)
+					System.err.println("Length of hypothesis is 0");
+				continue;
+			}
 			else
 			{
 				if (first)
 				{
-					if ((Boolean) TERpara.para().get(TERpara.OPTIONS.TRY_ALL_SHIFTS))
+					if (params.para().get_boolean(TERpara.OPTIONS.TRY_ALL_SHIFTS))
 					{
 						align = TERppcn_allshifts(pphyp, cn, ref);
-					} else
-					{
-						align = TERppcn(pphyp, hyps_scores.get(hyp_idx), cn, cn_scores, ref, ref_scores);
 					}
-				} else
-				{
-					if ((Boolean) TERpara.para().get(TERpara.OPTIONS.TRY_ALL_SHIFTS))
+					else
 					{
-						align = TERppcn_allshifts(pphyp, align.cn, ref);
-					} else
-					{
-						align = TERppcn(pphyp, hyps_scores.get(hyp_idx), align.cn, align.cn_scores, ref, ref_scores);
+						align = TERppcn(pphyp, hyps_scores.get(idxScores.get(i).index), cn, cn_scores, ref, ref_scores);
 					}
 				}
-				align.buildCN();
-				
+				else
+				{
+					if (params.para().get_boolean(TERpara.OPTIONS.TRY_ALL_SHIFTS))
+					{
+						align = TERppcn_allshifts(pphyp, align.cn, ref);
+					}
+					else
+					{
+						align = TERppcn(pphyp, hyps_scores.get(idxScores.get(i).index), align, ref, ref_scores);
+					}
+				}
+				align.ref_idx = params.para().get_integer(TERpara.OPTIONS.REF_IDX);
+				align.buildCN(hyp_idx);
+
 				first = false;
 			}
 			if (ref_len >= 0)
@@ -98,12 +119,16 @@ public class TERcalcCN extends TERcalc
 			if (DEBUG)
 			{
 				System.out.println("----------------- Le CN : ");
-				System.out.println(TERalignmentCN.toCNString(align.cn));
+				System.out.println(align.toCNString());
 			}
 		}
-		if(DEBUG)
-		{	System.err.println("******** TERppcn : The final BEST alignment : ");
-			System.err.println(align.toCNString());
+		if (DEBUG)
+		{
+			System.err.println("******** TERcn : The final BEST alignment : ");
+			if (align != null)
+				System.err.println(align.toCNString());
+			else
+				System.err.println("!!!! CN is empty !!!!");
 		}
 		return align;
 	}
@@ -128,7 +153,8 @@ public class TERcalcCN extends TERcalc
 		 */
 
 		long startTime = System.nanoTime();
-		TERalignmentCN cur_align = MinEditDistcn(hyp, cn); //MinEditDistcn(hyp, cn, ref);
+		TERalignmentCN cur_align = MinEditDistcn(hyp, cn); // MinEditDistcn(hyp,
+															// cn, ref);
 		cur_align.hyp = hyp;
 		cur_align.aftershift = hyp;
 		cur_align.ref = ref;
@@ -154,7 +180,8 @@ public class TERcalcCN extends TERcalc
 
 		while (cur.isEmpty() == false) // while we have a shifts to perform ...
 		{
-			if(DEBUG) System.out.println("******** Looking for good shift, iteration #" + nbIt);
+			if (DEBUG)
+				System.out.println("******** Looking for good shift, iteration #" + nbIt);
 			nbIt++;
 			CalcAllShiftcn(cur, hyp, cn, aligns, ref);
 
@@ -194,41 +221,35 @@ public class TERcalcCN extends TERcalc
 		return to_return;
 	}
 
-	public TERalignmentCN TERppcn(Comparable<String>[] hyp, float[] hyp_scores, ArrayList<ArrayList<Comparable<String>>> cn,
-			ArrayList<ArrayList<Float>> cn_scores, Comparable<String>[] ref, float[] ref_scores)
+	public TERalignmentCN TERppcn(Comparable<String>[] hyp, float[] hyp_scores, TERalignmentCN align,
+			Comparable<String>[] ref, float[] ref_scores)
 	{
-		// System.out.println("START TERppcn");
+		TERalignmentCN al = TERppcn(hyp, hyp_scores, align.cn, align.cn_scores, ref, ref_scores);
+		al.full_cn = align.full_cn;
+		al.full_cn_scores = align.full_cn_scores;
+		al.full_cn_sys = align.full_cn_sys;
+		return al;
+	}
+
+	public TERalignmentCN TERppcn(Comparable<String>[] hyp, float[] hyp_scores,
+			ArrayList<ArrayList<Comparable<String>>> cn, ArrayList<ArrayList<Float>> cn_scores,
+			Comparable<String>[] ref, float[] ref_scores)
+	{
+		// System.err.println("TERcalcCN::TERppcn : START");
 		// Calculates the TER score for the hyp/ref pair
-		if (DEBUG)
-		{
-			boolean first = true;
-			System.err.print("HYP = ");
-			for (Comparable<String> s : hyp)
-			{
-				if (!first)
-					System.err.print(" ");
-				System.err.print((String) s);
-				first = false;
-			}
-			System.err.println();
-			first = false;
-			System.err.print("REF = ");
-			for (Comparable<String> s : ref)
-			{
-				if (!first)
-					System.err.print(" ");
-				System.err.print((String) s);
-				first = false;
-			}
-			System.err.println();
-			if (cn != null)
-			{
-				System.err.println("Le CN : ");
-				System.err.println(TERalignmentCN.toCNString(cn));
-			}
-		}
+		/*
+		 * if (DEBUG) { boolean first = true; System.err.print("HYP = "); for
+		 * (Comparable<String> s : hyp) { if (!first) System.err.print(" ");
+		 * System.err.print((String) s); first = false; } System.err.println();
+		 * first = false; System.err.print("REF = "); for (Comparable<String> s
+		 * : ref) { if (!first) System.err.print(" "); System.err.print((String)
+		 * s); first = false; } System.err.println(); if (cn != null) {
+		 * System.err.println("Le CN : ");
+		 * System.err.println(TERutilities.toCNString(cn, cn_scores)); } }
+		 */
 		long startTime = System.nanoTime();
-		TERalignmentCN cur_align = MinEditDistcn(hyp, cn);//MinEditDistcn(hyp, cn, ref);
+		TERalignmentCN cur_align = MinEditDistcn(hyp, cn);// MinEditDistcn(hyp,
+															// cn, ref);
 
 		float[] cur_scores = hyp_scores;
 		Comparable<String>[] cur = hyp;
@@ -238,9 +259,8 @@ public class TERcalcCN extends TERcalc
 		cur_align.ref = ref;
 		cur_align.cn = cn;
 		cur_align.cn_scores = cn_scores;
-		
+
 		double edits = 0;
-		//int numshifts = 0;
 		ArrayList<TERshift> allshifts = new ArrayList<TERshift>(hyp.length + cn.size());
 		if (DEBUG)
 			System.err.println("Initial Alignment:\n" + cur_align + "\n");
@@ -251,7 +271,6 @@ public class TERcalcCN extends TERcalc
 				System.err.println("******** Looking for good shift, iteration #" + nbIt);
 			nbIt++;
 			Object[] returns = CalcBestShiftcn(cur, hyp, hyp_scores, cn, cur_align, ref);
-			// Object[] returns = CalcBestShift(cur, hyp, ref, rloc, cur_align);
 			if (returns == null)
 			{
 				break;
@@ -282,7 +301,7 @@ public class TERcalcCN extends TERcalc
 		}
 
 		TERalignmentCN to_return = cur_align;
-		to_return.allshifts = (TERshift[]) allshifts.toArray(new TERshift[0]);
+		to_return.allshifts = allshifts.toArray(new TERshift[0]);
 		to_return.numEdits += edits;
 		to_return.addHyp(hyp);
 		to_return.ref = ref;
@@ -291,7 +310,7 @@ public class TERcalcCN extends TERcalc
 		NUM_SEGMENTS_SCORED++;
 		long endTime = System.nanoTime();
 		this.calcTime += endTime - startTime;
-		// System.err.println("END TERppcn");
+		// System.err.println("TERcalcCN::TERppcn : END");
 		return to_return;
 	}
 
@@ -331,8 +350,8 @@ public class TERcalcCN extends TERcalc
 			{
 
 				if ((rp.equals(hp))
-						|| (((shift_con == SHIFT_CON.RELAX) || (shift_con == SHIFT_CON.RELAX_NP) || (shift_con == SHIFT_CON.ALLOW_MISMATCH)) && ((use_porter && Porter
-								.equivStems(hp, rp)) || (use_wordnet && WordNet.areSynonyms(hp, rp)))))
+						|| (((shift_con == SHIFT_CON.RELAX) || (shift_con == SHIFT_CON.RELAX_NP) || (shift_con == SHIFT_CON.ALLOW_MISMATCH)) && ((use_porter && porter
+								.equivStems(hp, rp)) || (use_wordnet && wordnet.areSynonyms(hp, rp)))))
 				{
 					is_mismatch = false;
 				}
@@ -406,7 +425,8 @@ public class TERcalcCN extends TERcalc
 							if ((roff == -1) && (r_start == 0))
 							{
 								topush = new TERshift(h_start, hind, -1, -1);
-							} else if ((r_start + roff >= 0) && (r_start + roff < ralign.length)
+							}
+							else if ((r_start + roff >= 0) && (r_start + roff < ralign.length)
 									&& (h_start != ralign[r_start + roff])
 									&& ((roff == 0) || (ralign[r_start + roff] != ralign[r_start])))
 							{
@@ -437,7 +457,8 @@ public class TERcalcCN extends TERcalc
 						}
 					}
 				}
-			} else
+			}
+			else
 			{
 				ok = false;
 			}
@@ -485,8 +506,8 @@ public class TERcalcCN extends TERcalc
 					ArrayList ph = pt.retrieve_all(cn, ri, hyp, hi);
 					if ((ph != null) && (ph.size() > 0))
 					{
-						if(DEBUG)
-							System.err.println("We found paraphrases : "+ph.get(0));
+						if (DEBUG)
+							System.err.println("We found paraphrases : " + ph.get(0));
 						paramap[ri].put(hi, ph);
 					}
 				}
@@ -503,12 +524,12 @@ public class TERcalcCN extends TERcalc
 		for (int i = 0; i < to_return.length; i++)
 		{
 			ArrayList<TERshift[]> al = new ArrayList<TERshift[]>(allshifts[i]);
-			to_return[i] = (TERshift[]) al.toArray(new TERshift[0]);
+			to_return[i] = al.toArray(new TERshift[0]);
 		}
 		return to_return;
 	}
-	private Object[] CalcBestShiftcn(Comparable<String>[] cur, Comparable<String>[] hyp, float[] hyp_scores, ArrayList<ArrayList<Comparable<String>>> cn,
-			TERalignmentCN align, Comparable<String>[] ref)
+	private Object[] CalcBestShiftcn(Comparable<String>[] cur, Comparable<String>[] hyp, float[] hyp_scores,
+			ArrayList<ArrayList<Comparable<String>>> cn, TERalignmentCN align, Comparable<String>[] ref)
 	{
 		/*
 		 * return null if no good shift is found or return Object[ TERshift
@@ -573,29 +594,33 @@ public class TERcalcCN extends TERcalc
 				float[] shiftarr_scores = PerformShift(hyp_scores, curshift);
 
 				if (DEBUG)
-				{	
-					System.err.println("Considering shift : " + curshift + " which gives : " + TERutilities.join(" ", shiftarr));
+				{
+					System.err.println("Considering shift : " + curshift + " which gives : "
+							+ TERutilities.join(" ", shiftarr));
 					System.err.println("Corresponding scores are : " + TERutilities.join(" ", shiftarr_scores));
 				}
 
-				TERalignmentCN curalign = MinEditDistcn(shiftarr, cn); //MinEditDistcn(shiftarr, cn, ref);
+				TERalignmentCN curalign = MinEditDistcn(shiftarr, cn); // MinEditDistcn(shiftarr,
+																		// cn,
+																		// ref);
 				curalign.hyp = hyp;
 				curalign.ref = ref;
 				curalign.cn = cn;
 				curalign.cn_scores = align.cn_scores;
 				curalign.aftershift = shiftarr;
 				curalign.aftershift_scores = shiftarr_scores;
-				
-				if(DEBUG)
+
+				if (DEBUG)
 				{
 					System.err.println("BEST : numEdits=" + cur_best_align.numEdits + " cost=" + cur_best_shift_cost
-						+ "  CUR : numEdits=" + curalign.numEdits + " cost=" + curshift.cost);
+							+ "  CUR : numEdits=" + curalign.numEdits + " cost=" + curshift.cost);
 				}
 				double gain = (cur_best_align.numEdits + cur_best_shift_cost) - (curalign.numEdits + curshift.cost);
 				if (DEBUG)
 				{
 					System.err.println("DEBUG CalcBestShiftcn : Gain for " + curshift + " is " + gain + ". (result: ["
-							+ TERutilities.join(" ", shiftarr) + "], scores [" + TERutilities.join(" ", shiftarr_scores)+ "])" );
+							+ TERutilities.join(" ", shiftarr) + "], scores ["
+							+ TERutilities.join(" ", shiftarr_scores) + "])");
 					// System.out.println("" + curalign + "\n");
 				}
 				if ((gain > 0) || ((cur_best_shift_cost == 0) && (gain == 0)))
@@ -605,9 +630,8 @@ public class TERcalcCN extends TERcalc
 					cur_best_shift_cost = curshift.cost;
 					cur_best_align = curalign;
 					if (DEBUG)
-					{ 
-						System.err.println("DEBUG CalcBestShiftcn : Choosing shift: "
-								+ cur_best_shift + " gives:\n"
+					{
+						System.err.println("DEBUG CalcBestShiftcn : Choosing shift: " + cur_best_shift + " gives:\n"
 								+ cur_best_align + "\n");
 					}
 				}
@@ -618,7 +642,8 @@ public class TERcalcCN extends TERcalc
 			to_return[0] = cur_best_shift;
 			to_return[1] = cur_best_align;
 			return to_return;
-		} else
+		}
+		else
 		{
 			if (DEBUG)
 				System.err.println("No good shift found.\n");
@@ -658,7 +683,8 @@ public class TERcalcCN extends TERcalc
 				// System.err.println("Already seen hyp : "+join("",
 				// cur)+" ... skipping ...");
 				continue;
-			} else
+			}
+			else
 			{
 				encounteredHyp.put(TERutilities.join("", cur), true);
 				// System.err.println("Looking for shifts with hyp : "+join("",
@@ -712,7 +738,9 @@ public class TERcalcCN extends TERcalc
 					}
 					TERshift curshift = poss_shifts[i][s];
 					Comparable<String>[] shiftarr = PerformShift(cur, curshift);
-					TERalignmentCN curalign = MinEditDistcn(shiftarr, cn); //MinEditDistcn(shiftarr, cn, ref);
+					TERalignmentCN curalign = MinEditDistcn(shiftarr, cn); // MinEditDistcn(shiftarr,
+																			// cn,
+																			// ref);
 					curalign.hyp = hyp;
 					curalign.ref = ref;
 					curalign.cn = cn;
@@ -722,12 +750,12 @@ public class TERcalcCN extends TERcalc
 					// System.err.println("Ading new hyp : "+join(" ",shiftarr));
 					alignments.add(curalign);
 
-					if(DEBUG)
+					if (DEBUG)
 					{
 						System.err.println("BEST : numEdits=" + _bestAlign.numEdits + " cost=" + best_shift_cost
 								+ "  CUR : numEdits=" + curalign.numEdits + " cost=" + curshift.cost);
 					}
-					
+
 					double gain = (_bestAlign.numEdits + best_shift_cost) - (curalign.numEdits + curshift.cost);
 					if (DEBUG)
 					{
@@ -753,8 +781,14 @@ public class TERcalcCN extends TERcalc
 		return true;
 	}
 
-	private TERalignmentCN MinEditDistcn(Comparable<String>[] hyp, ArrayList<ArrayList<Comparable<String>>> cn)
+	public TERalignmentCN MinEditDistcn(Comparable<String>[] hyp, ArrayList<ArrayList<Comparable<String>>> cn)
 	{
+		if (hyp == null || cn == null)
+		{
+			if (DEBUG)
+				System.err.println("hyp or cn is null in MinEditDist ... returning null");
+			return null;
+		}
 		// System.err.println("BEGIN MinEditDistcn - with CN");
 		double current_best = INF;
 		double last_best = INF;
@@ -767,8 +801,8 @@ public class TERcalcCN extends TERcalc
 		int i, j;
 		double cost, icost, dcost;
 		double score;
-		//int hwsize = hyp.length - 1;
-		//int rwsize = cn.size() - 1;
+		// int hwsize = hyp.length - 1;
+		// int rwsize = cn.size() - 1;
 		NUM_BEAM_SEARCH_CALLS++;
 		PhraseTable pt = null;
 		if (use_phrases)
@@ -820,8 +854,8 @@ public class TERcalcCN extends TERcalc
 					int pos = contains(cn.get(i), hyp[j]);
 					if (pos != -1)
 					{
-						//if(DEBUG)
-							//System.err.println("MinEditDistance : CN["+i+"] contains word "+hyp[j]);
+						// if(DEBUG)
+						// System.err.println("MinEditDistance : CN["+i+"] contains word "+hyp[j]);
 						cost = costfunc.match_cost(hyp[j], cn.get(i).get(pos)) + score;
 						if ((S[i + 1][j + 1] == -1) || (cost < S[i + 1][j + 1]))
 						{
@@ -832,13 +866,13 @@ public class TERcalcCN extends TERcalc
 							current_best = cost;
 						if (current_best == cost)
 							cur_last_peak = i + 1;
-					} 
+					}
 					else
 					{
-						if (use_wordnet && WordNet.areSynonyms(hyp[j], cn.get(i)))
+						if (use_wordnet && wordnet.areSynonyms(hyp[j], cn.get(i)))
 						{
-							if(DEBUG)
-								System.err.println("MinEditDistance : CN["+i+"] contains SYNONYM of "+hyp[j]);
+							if (DEBUG)
+								System.err.println("MinEditDistance : CN[" + i + "] contains SYNONYM of " + hyp[j]);
 							cost = costfunc.syn_cost(hyp[j], cn.get(i)) + score;
 							if ((S[i + 1][j + 1] < 0) || (cost < S[i + 1][j + 1]))
 							{
@@ -850,10 +884,10 @@ public class TERcalcCN extends TERcalc
 									cur_last_peak = i + 1;
 							}
 						}
-						else if (use_porter && Porter.equivStems(hyp[j], cn.get(i)))
+						else if (use_porter && porter.equivStems(hyp[j], cn.get(i)))
 						{
-							if(DEBUG)
-								System.err.println("MinEditDistance : CN["+i+"] contains STEM of "+hyp[j]);
+							if (DEBUG)
+								System.err.println("MinEditDistance : CN[" + i + "] contains STEM of " + hyp[j]);
 							cost = costfunc.stem_cost(hyp[j], cn.get(i)) + score;
 							if ((S[i + 1][j + 1] < 0) || (cost < S[i + 1][j + 1]))
 							{
@@ -867,8 +901,8 @@ public class TERcalcCN extends TERcalc
 						}
 						else
 						{
-							//if(DEBUG)
-								//System.err.println("MinEditDistance : CN["+i+"] and "+hyp[j]+" are SUBSTITUTION");
+							// if(DEBUG)
+							// System.err.println("MinEditDistance : CN["+i+"] and "+hyp[j]+" are SUBSTITUTION");
 							cost = costfunc.substitute_cost(hyp[j], cn.get(i)) + score;
 							if ((S[i + 1][j + 1] < 0) || (cost < S[i + 1][j + 1]))
 							{
@@ -890,16 +924,18 @@ public class TERcalcCN extends TERcalc
 					{
 						PhraseTree.OffsetScore ph = (PhraseTree.OffsetScore) phrases.get(pi);
 						cost = score + ph.cost;
-					
+
 						if ((S[i + ph.ref_len][j + ph.hyp_len] < 0) || (cost < S[i + ph.ref_len][j + ph.hyp_len]))
 						{
 							S[i + ph.ref_len][j + ph.hyp_len] = cost;
 							P[i + ph.ref_len][j + ph.hyp_len] = 'P';
 							PL[i + ph.ref_len][j + ph.hyp_len] = ph;
 						}
-						if(DEBUG)
-						{	System.err.println("MinEditDistance : CN["+i+"]  and "+hyp[j]+" -- PHRASE TABLE");
-							System.err.println("MinEditDistance : At i=" + i + " j=" + j + " found phrase: "+ ph +"\n");
+						if (DEBUG)
+						{
+							System.err.println("MinEditDistance : CN[" + i + "]  and " + hyp[j] + " -- PHRASE TABLE");
+							System.err.println("MinEditDistance : At i=" + i + " j=" + j + " found phrase: " + ph
+									+ "\n");
 						}
 					}
 				}
@@ -937,22 +973,27 @@ public class TERcalcCN extends TERcalc
 			{
 				i--;
 				j--;
-			} else if ((P[i][j] == 'S') || (P[i][j] == 'Y') || (P[i][j] == 'T'))
+			}
+			else if ((P[i][j] == 'S') || (P[i][j] == 'Y') || (P[i][j] == 'T'))
 			{
 				i--;
 				j--;
-			} else if (P[i][j] == 'D')
+			}
+			else if (P[i][j] == 'D')
 			{
 				i--;
-			} else if (P[i][j] == 'I')
+			}
+			else if (P[i][j] == 'I')
 			{
 				j--;
-			} else if (P[i][j] == 'P')
+			}
+			else if (P[i][j] == 'P')
 			{
 				PhraseTree.OffsetScore os = PL[i][j];
 				i -= os.ref_len;
 				j -= os.hyp_len;
-			} else
+			}
+			else
 			{
 				System.err.println("Invalid path: P[" + i + "][" + j + "] = " + P[i][j]);
 				System.err.println("Ref Len=" + cn.size() + " Hyp Len=" + hyp.length + " TraceLength=" + tracelength);
@@ -975,23 +1016,27 @@ public class TERcalcCN extends TERcalc
 				j--;
 				r_path[tracelength] = 1;
 				h_path[tracelength] = 1;
-			} else if ((P[i][j] == 'S') || (P[i][j] == 'T') || (P[i][j] == 'Y'))
+			}
+			else if ((P[i][j] == 'S') || (P[i][j] == 'T') || (P[i][j] == 'Y'))
 			{
 				i--;
 				j--;
 				r_path[tracelength] = 1;
 				h_path[tracelength] = 1;
-			} else if (P[i][j] == 'D')
+			}
+			else if (P[i][j] == 'D')
 			{
 				i--;
 				r_path[tracelength] = 1;
 				h_path[tracelength] = 0;
-			} else if (P[i][j] == 'I')
+			}
+			else if (P[i][j] == 'I')
 			{
 				j--;
 				r_path[tracelength] = 0;
 				h_path[tracelength] = 1;
-			} else if (P[i][j] == 'P')
+			}
+			else if (P[i][j] == 'P')
 			{
 				PhraseTree.OffsetScore os = PL[i][j];
 				i -= os.ref_len;
@@ -1001,31 +1046,41 @@ public class TERcalcCN extends TERcalc
 			}
 			cost_path[tracelength] -= S[i][j];
 		}
-		TERalignmentCN to_return = new TERalignmentCN(costfunc);
+		TERalignmentCN to_return = new TERalignmentCN(costfunc, params);
 		to_return.numWords = cn.size();
 		to_return.alignment = path;
 		to_return.alignment_h = h_path;
 		to_return.alignment_r = r_path;
 		to_return.alignment_cost = cost_path;
 		to_return.numEdits = S[cn.size()][hyp.length];
-		to_return.cn = cn;   
-		//to_return.ref = ref;
+		to_return.cn = cn;
+		// to_return.ref = ref;
 		// System.err.println("END MinEditDistcn - with CN");
 		return to_return;
 	}
 	private int contains(ArrayList<Comparable<String>> ref, Comparable<String> hyp)
 	{
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.CASEON))
+		if (params.para().get_boolean(TERpara.OPTIONS.CASEON))
 		{
 			for (int i = 0; i < ref.size(); i++)
 				if (ref.get(i).equals(hyp))
 					return i;
-		} else
+		}
+		else
 		{
 			for (int i = 0; i < ref.size(); i++)
 				if (((String) ref.get(i)).equalsIgnoreCase((String) hyp))
 					return i;
 		}
 		return -1;
+	}
+
+	public TERalignmentCN compute_ter(ArrayList<ArrayList<Comparable<String>>> cn, String[] ref)
+	{
+		// compute MinEditDistance between ref and cn
+		if (DEBUG)
+			System.err.println("Reference is : " + TERutilities.join(" ", ref));
+		Comparable<String>[] ppref = costfunc.process_input_ref(ref);
+		return MinEditDistcn(ppref, cn);
 	}
 }

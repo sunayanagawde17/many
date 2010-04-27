@@ -16,71 +16,70 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.logging.Formatter;
-import java.util.logging.Level;
 import java.util.logging.LogRecord;
 
 /**
- * Provides a log formatter for use with sphinx. This formatter generates nicer
- * looking console messages than the default formatter. To use the formatter,
- * set the property
- * 
+ * Provides a log formatter for use with CMU Sphinx. This formatter generates
+ * nicer looking console messages than the default formatter. To use the
+ * formatter, set the property
+ * <p/>
  * java.util.logging.ConsoleHandler.formatter to
  * edu.cmu.sphinx.util.SphinxLogFormatter
- * 
+ * <p/>
  * This is typically done in a custom loger.properties file
  */
 public class SphinxLogFormatter extends Formatter {
 
-    private static DateFormat DATE_FORMATTER = new SimpleDateFormat("hh:mm.SSS");
+    private final DateFormat DATE_FORMATTER = new SimpleDateFormat("HH:mm:ss.SSS");
     private boolean terse;
+
 
     /**
      * Sets the level of output
-     * 
+     *
      * @param terse if true, the output level should be terse
      */
     public void setTerse(boolean terse) {
         this.terse = terse;
     }
 
+
     /**
      * Retrieves the level of output
-     * 
+     *
      * @return the level of output
      */
     public boolean getTerse() {
         return terse;
     }
 
+
     /**
      * Formats the given log record and return the formatted string.
-     * 
-     * @param record
-     *                the record to format
-     * 
+     *
+     * @param record the record to format
      * @return the formatted string
      */
+    @Override
     public String format(LogRecord record) {
         if (terse) {
-            return record.getMessage() + "\n";
+            return record.getMessage() + '\n';
         } else {
             String date = DATE_FORMATTER.format(new Date(record.getMillis()));
-            StringBuffer sbuf = new StringBuffer();
-            sbuf.append(date);
-            sbuf.append(" ");
-            sbuf.append(Utilities.pad(record.getLevel().getName() + " "
-                    + record.getLoggerName(), 24));
-            sbuf.append("  ");
-            sbuf.append(record.getMessage());
-            sbuf.append("\n");
-            if (record.getLevel().equals(Level.WARNING)
-                    || record.getLevel().equals(Level.SEVERE)) {
-                sbuf.append("                   in "
-                        + record.getSourceClassName() + ":"
-                        + record.getSourceMethodName() + "-"
-                        + record.getLoggerName() + "\n");
+            StringBuilder sb = new StringBuilder().append(date).append(' ');
+
+            String loggerName = record.getLoggerName();
+            String source;
+            if (loggerName != null) {
+                String[] strings = loggerName.split("[.]");
+                source = strings[strings.length - 1];
+            } else {
+                source = loggerName;
             }
-            return sbuf.toString();
+
+            sb.append(Utilities.pad(record.getLevel().getName() + ' ' + source, 24));
+            sb.append("  ").append(record.getMessage()).append('\n');
+            return sb.toString();
         }
     }
 

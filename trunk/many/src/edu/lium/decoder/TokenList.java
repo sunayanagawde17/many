@@ -15,15 +15,12 @@ import java.util.ArrayList;
 
 public class TokenList extends ArrayList<Token>
 {
-	/**
-	 * 
-	 */
 	private static final long serialVersionUID = -2555724904548780856L;
 	
-	public void removeRange(int arg0, int arg1)
+	@Override
+	protected void removeRange(int fromIndex, int toIndex)
 	{
 		// TODO Auto-generated method stub
-		super.removeRange(arg0, arg1);
+		super.removeRange(fromIndex, toIndex);
 	}
-	
 }

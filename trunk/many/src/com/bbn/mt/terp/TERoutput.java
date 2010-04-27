@@ -1,31 +1,63 @@
 package com.bbn.mt.terp;
 
-import java.util.HashMap;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.Map;
-import java.io.*;
-import org.w3c.dom.Document;
+import java.util.Map.Entry;
 
 public class TERoutput
 {
+	public String refname = "";
+	public boolean caseon = false;
+	public String ref_fn = "";
+	public String reflen_fn = "";
+	public String hyp_fn = "";
+	public String[] hyps_fns = null;
+	public TERinput terin = null;
+
+	private HashMap<String, ArrayList<TERalignment>> sys_results = new HashMap<String, ArrayList<TERalignment>>();
+	private HashMap<String, ArrayList<TERid>> sys_ids = new HashMap<String, ArrayList<TERid>>();
+
+	private HashMap<String, TERalignment> seg_guid_results = new HashMap<String, TERalignment>();
+	private ArrayList<String> seg_guid_ids = new ArrayList<String>();
+
+	private TreeMap<TERid, TERalignment> sorted_segs = new TreeMap<TERid, TERalignment>();
+
+	private HashMap<String, Map<TERid, TERalignment>> sorted_sys_segs = new HashMap<String, Map<TERid, TERalignment>>();
+
+	private TreeMap<TERid, TERalignment> allresults = new TreeMap<TERid, TERalignment>();
 	
+	private ArrayList<TERalignment> results = new ArrayList<TERalignment>();
+	
+	private ArrayList<TERid> ids = new ArrayList<TERid>();
+	// private HashMap<TERid, String> idrankmap = new HashMap();
+
+	private String out_prefix = "";
+	private ArrayList<String> formats = new ArrayList<String>();
+
+	//public HashMap idmap = null;
 	private static int num = 0;
+	private TERpara params = null;
 	
-	public TERoutput()
+	private TERoutput()
 	{
 	}
 
-	public TERoutput(String prefix, ArrayList formats)
+	public TERoutput(String prefix, ArrayList<String> formats, TERpara params)
 	{
 		this.out_prefix = prefix;
 		this.formats = formats;
+		this.params = params;
 	}
 
-	public TERoutput(String prefix, ArrayList formats, String hyp_fn, String ref_fn, String reflen_fn, boolean caseon,
-			TERinput terin)
+	public TERoutput(String prefix, ArrayList<String> formats, String hyp_fn, String ref_fn, String reflen_fn, boolean caseon,
+			TERinput terin, TERpara params)
 	{
 		this.out_prefix = prefix;
 		this.formats = formats;
@@ -34,10 +66,11 @@ public class TERoutput
 		this.reflen_fn = reflen_fn;
 		this.caseon = caseon;
 		this.terin = terin;
+		this.params = params;
 	}
 
-	public TERoutput(String prefix, ArrayList formats, String[] hyps_fns, String ref_fn, String reflen_fn,
-			boolean caseon, TERinput terin)
+	public TERoutput(String prefix, ArrayList<String> formats, String[] hyps_fns, String ref_fn, String reflen_fn,
+			boolean caseon, TERinput terin, TERpara params)
 	{
 		this.out_prefix = prefix;
 		this.formats = formats;
@@ -47,6 +80,7 @@ public class TERoutput
 		this.reflen_fn = reflen_fn;
 		this.caseon = caseon;
 		this.terin = terin;
+		this.params = params;
 	}
 
 	public void output_all()
@@ -56,8 +90,8 @@ public class TERoutput
 
 	public void output_all(String prefix)
 	{
-		ArrayList saved_formats = formats;
-		formats = new ArrayList(1);
+		ArrayList<String> saved_formats = formats;
+		formats = new ArrayList<String>(1);
 		formats.add("all");
 		output(prefix);
 		formats = saved_formats;
@@ -67,7 +101,7 @@ public class TERoutput
 	{
 		for (int i = 0; i < results.size(); i++)
 		{
-			TERalignment result = (TERalignment) results.get(i);
+			TERalignment result = results.get(i);
 			result.rescore_alignment();
 		}
 	}
@@ -76,7 +110,7 @@ public class TERoutput
 	{
 		for (int i = 0; i < results.size(); i++)
 		{
-			TERalignment result = (TERalignment) results.get(i);
+			TERalignment result = results.get(i);
 			result.rescore_alignment(costfunc);
 		}
 	}
@@ -171,6 +205,11 @@ public class TERoutput
 		output_ter(out_prefix + ".ter");
 	};
 
+	public void output_ter_scores()
+	{
+		output_ter_scores(out_prefix + ".terscores");
+	};
+	
 	public void output_sum()
 	{
 		output_sum(out_prefix + ".sum");
@@ -228,12 +267,14 @@ public class TERoutput
 				if(result instanceof TERalignmentCN)
 				{
 					TERalignmentCN result_cn = (TERalignmentCN) result;
-					String s = result_cn.toCNString();
+					//String s = result_cn.toFullCNString(TERpara.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
+					String s = result_cn.toFullCNString(params.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
 					out.write(s);
+					out.newLine();
 				}
 				else
 				{
-					System.err.println(ids.get(i)+" -> Pas un CN !!!");
+					System.err.println("TERoutput::output_cn : "+ids.get(i)+" -> Pas un CN !!!");
 				}
 			}
 			out.close();
@@ -265,8 +306,8 @@ public class TERoutput
 			out.write("<TR id=header><TD>ID<TD>Num Words<TD>TERp Score</TR>\n");
 			for (int i = 0; i < seg_guid_ids.size(); i++)
 			{
-				String id = (String) seg_guid_ids.get(i);
-				TERalignment result = (TERalignment) seg_guid_results.get(id);
+				String id = seg_guid_ids.get(i);
+				TERalignment result = seg_guid_results.get(id);
 				result.scoreDetails();
 				out.write("<TR>");
 				out.write("<TD id=sumsegid><A HREF=\"#seg" + i + "\">" + id + "</A></TD>\n");
@@ -280,12 +321,12 @@ public class TERoutput
 			out.write("<TABLE id=detailstable>\n");
 			for (int i = 0; i < seg_guid_ids.size(); i++)
 			{
-				String id = (String) seg_guid_ids.get(i);
+				String id = seg_guid_ids.get(i);
 				out.write("<TR>");
 				out.write("<TD id=label>Segment ID<TD id=segid><A NAME=\"seg" + i + "\">" + id
 						+ "</A> <A HREF=\"#top\">(back to top)</A></TD></TR>\n");
 
-				TERalignment result = (TERalignment) seg_guid_results.get(id);
+				TERalignment result = seg_guid_results.get(id);
 				result.scoreDetails();
 				out.write("<TR><TD id=label>Number of Edits<TD id=numedits>" + result.numEdits + "</TD></TR>\n");
 				out.write("<TR><TD id=label>Number of Words<TD id=numwds>" + result.numWords + "</TD></TR>\n");
@@ -469,8 +510,8 @@ public class TERoutput
 			// out.write("<TABLE>\n");
 			for (int i = 0; i < results.size(); i++)
 			{
-				TERalignment result = (TERalignment) results.get(i);
-				out.write("digraph " + ((TERid) ids.get(i)) + " {\n");
+				TERalignment result = results.get(i);
+				out.write("digraph " + (ids.get(i)) + " {\n");
 				out.write(result.toDotString());
 				out.write("\n}\n\n");
 			}
@@ -488,7 +529,8 @@ public class TERoutput
 		try
 		{
 			BufferedWriter out = new BufferedWriter(new FileWriter(fname));
-			out.write(TERpara.para().outputPara());
+			//out.write(TERpara.para().outputPara());
+			out.write(params.para().outputPara());
 			out.close();
 		} catch (IOException ioe)
 		{
@@ -510,10 +552,10 @@ public class TERoutput
 
 				BufferedWriter out_seg = new BufferedWriter(new FileWriter(prefix + sysid + rn + ".seg.scr"));
 
-				HashMap<String, TERalignment> syslevel = new HashMap();
-				HashMap<String, TERalignment> doclevel = new HashMap();
-				ArrayList<String> sysorder = new ArrayList();
-				ArrayList<String> docorder = new ArrayList();
+				HashMap<String, TERalignment> syslevel = new HashMap<String, TERalignment>();
+				HashMap<String, TERalignment> doclevel = new HashMap<String, TERalignment>();
+				ArrayList<String> sysorder = new ArrayList<String>();
+				ArrayList<String> docorder = new ArrayList<String>();
 
 				for (int i = 0; i < sresults.size(); i++)
 				{
@@ -589,7 +631,7 @@ public class TERoutput
 			if (results.size() > 0)
 			{
 				out.write("Initial Weights:\n");
-				out.write(TERutilities.join(" ", ((TERalignment) results.get(0)).current_weights()) + "\n");
+				out.write(TERutilities.join(" ", (results.get(0)).current_weights()) + "\n");
 			}
 			out.close();
 		} catch (IOException ioe)
@@ -697,6 +739,25 @@ public class TERoutput
 		return;
 	}
 
+	public void output_ter_scores(String fname)
+	{
+		try
+		{
+			BufferedWriter out = new BufferedWriter(new FileWriter(fname));
+			for (TERid tid : getIds())
+			{
+				TERalignment result = getResult(tid);
+				out.write(String.format("%.2f\n", result.score()));
+			}
+			out.close();
+		} catch (IOException ioe)
+		{
+			System.err.println("output ter scores" + ioe);
+			System.exit(-1);
+		}
+		return;
+	}
+	
 	public void output_xml(String fname)
 	{
 		try
@@ -808,12 +869,12 @@ public class TERoutput
 			out
 					.write("-------------------------------------------------------------------------------------------------------------------------------------------------\n");
 
-			Iterator it = sorted_segs.entrySet().iterator();
+			Iterator<Entry<TERid, TERalignment>> it = sorted_segs.entrySet().iterator();
 			while (it.hasNext())
 			{
-				Map.Entry me = (Map.Entry) it.next();
-				TERid tid = (TERid) me.getKey();
-				TERalignment result = (TERalignment) me.getValue();
+				Entry<TERid, TERalignment> me = it.next();
+				TERid tid = me.getKey();
+				TERalignment result = me.getValue();
 				result.scoreDetails();
 				out.write(String.format(
 						"%1$-40s %2$6d %3$6d %4$6d %5$6d %6$6d %7$6d %8$6d %9$6d %10$8.3f %11$8.3f %12$8.3f\n", tid
@@ -835,9 +896,9 @@ public class TERoutput
 	{
 		if (!(sys_results.containsKey(id.sys_id)))
 		{
-			sys_results.put(id.sys_id, new ArrayList());
-			sys_ids.put(id.sys_id, new ArrayList());
-			sorted_sys_segs.put(id.sys_id, new TreeMap());
+			sys_results.put(id.sys_id, new ArrayList<TERalignment>());
+			sys_ids.put(id.sys_id, new ArrayList<TERid>());
+			sorted_sys_segs.put(id.sys_id, new TreeMap<TERid, TERalignment>());
 		}
 		allresults.put(id, ta);
 
@@ -874,10 +935,10 @@ public class TERoutput
 	{
 		return allresults.get(tid);
 	}
-
+	
 	public TERalignment getResult(String id)
 	{
-		return (TERalignment) seg_guid_results.get(id);
+		return seg_guid_results.get(id);
 	}
 
 	public TERalignment getTERidResult(TERid tid)
@@ -890,32 +951,42 @@ public class TERoutput
 		return getResult(seg_guid);
 	}
 
-	public String refname = "";
-	public boolean caseon = false;
-	public String ref_fn = "";
-	public String reflen_fn = "";
-	public String hyp_fn = "";
-	public String[] hyps_fns = null;
-	public TERinput terin = null;
+	public void output_full_cns(String filename)
+	{
+		// PrintStream outWriter = null;
+		BufferedWriter outWriter = null;
+		
+		if (filename != null)
+		{
+			try
+			{
+				outWriter = new BufferedWriter(new FileWriter(filename));
+				for (TERalignment al : results)
+				{
+					if(al instanceof TERalignmentCN)
+					{
+						TERalignmentCN result_cn = (TERalignmentCN) al;
+						//String s = result_cn.toFullCNString(TERpara.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
+						String s = result_cn.toFullCNString(params.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
+						outWriter.write(s);
+					}
+					else
+					{
+						System.err.println("MANY::outputFullCNs -> Pas un CN !!!");
+						System.exit(0);
+					}
+				}
+				outWriter.close();
+			}
+			catch (IOException ioe)
+			{
+				System.err.println("I/O erreur durant creation output file " + String.valueOf(filename) + " " + ioe);
+			}
+		}
+	}
 
-	private HashMap<String, ArrayList> sys_results = new HashMap();
-	private HashMap<String, ArrayList> sys_ids = new HashMap();
-
-	private HashMap<String, TERalignment> seg_guid_results = new HashMap();
-	private ArrayList<String> seg_guid_ids = new ArrayList();
-
-	private TreeMap<TERid, TERalignment> sorted_segs = new TreeMap();
-
-	private HashMap<String, Map> sorted_sys_segs = new HashMap();
-
-	private TreeMap<TERid, TERalignment> allresults = new TreeMap();
-
-	private ArrayList<TERalignment> results = new ArrayList();
-	private ArrayList<TERid> ids = new ArrayList();
-	// private HashMap<TERid, String> idrankmap = new HashMap();
-
-	private String out_prefix = "";
-	private ArrayList formats = new ArrayList();
-
-	public HashMap idmap = null;
+	public void setParams(TERpara p)
+	{
+		params = p;
+	}
 }

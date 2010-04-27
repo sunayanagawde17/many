@@ -12,64 +12,74 @@
  */
 package edu.cmu.sphinx.util.props;
 
+/** Indicates that a problem occurred while setting one or more properties for this component */
+public class PropertyException extends RuntimeException {
 
-/**
- * Indicates that a problem occurred while setting one or more
- * properties for this component
- */
-public class PropertyException extends Exception {
-    private Configurable source;
+    private String instanceName;
     private String propertyName;
     private String msg;
-    
+
+
     /**
-     * Creates a new property exception
-     * 
-     * @param source the source of the problem
-     * @param propertyName the name of the property with the problem.
-     * @param msg a description of the problem.
+     * Creates a new property exception.
+     *
+     * @param instanceName The component this exception is related to.  (or <code>null</code> if unknown)
+     * @param propertyName The name of the component-property which the problem is related. (or <code>null</code> if
+     *                     unknown)
+     * @param msg          a description of the problem.
      */
-    public PropertyException(Configurable source, String propertyName, String msg) {
-        this.source = source;
+    public PropertyException(String instanceName, String propertyName, String msg) {
+        this(null, instanceName, propertyName, msg);
+    }
+
+
+    /**
+     * Creates a new property exception.
+     *
+     * @param cause        The cause of exception. (or <code>null</code> if unknown)
+     * @param instanceName The component this exception is related to.  (or <code>null</code> if unknown)
+     * @param propertyName The name of the component-property which the problem is related. (or <code>null</code> if
+     *                     unknown)
+     * @param msg          a description of the problem.
+     */
+    public PropertyException(Throwable cause, String instanceName, String propertyName, String msg) {
+        super(cause);
+
+        this.instanceName = instanceName;
         this.propertyName = propertyName;
         this.msg = msg;
     }
-    
-    
-    /**
-     * @return Returns the msg.
-     */
+
+
+    public PropertyException(Exception e) {
+        super(e);
+    }
+
+
+    /** @return Returns the msg. */
     public String getMsg() {
         return msg;
     }
-    /**
-     * @return Returns the source of this exception.
-     */
-    public Configurable getSource() {
-        return source;
-    }
-    
+
+
     /**
      * Retrieves the name of the offending property
-     * 
+     *
      * @return the name of the offending property
      */
     public String getProperty() {
         return propertyName;
     }
-    
+
+
     /**
      * Returns a string representation of this object
-     * 
+     *
      * @return the string representation of the object.
      */
+    @Override
     public String toString() {
-        String name = "";
-        
-        if (source != null) {
-            name = source.getName();
-        }
-        return "Property Exception component:'" + name
-           + "' property:'" + propertyName + "' - " + msg;
+        return "Property Exception component:'" + instanceName + "' property:'" + propertyName + "' - " + msg + '\n'
+                + super.toString();
     }
 }

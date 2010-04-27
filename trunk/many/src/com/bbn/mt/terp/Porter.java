@@ -1,4 +1,4 @@
-package com.bbn.mt.terp;
+	package com.bbn.mt.terp;
 // package bbn.mt.ster;
 // NOTE: This is a GROTESQUE Java implementation of Porter stemming, obviously written
 // by a life-long C programmer who doesn't understand Java String class or Java at all.
@@ -36,8 +36,15 @@ package com.bbn.mt.terp;
  Release 4
 
  */
-import java.io.*;
-import java.util.*;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 /**
  * Stemmer, implementing the Porter Stemming Algorithm
  * 
@@ -47,22 +54,36 @@ import java.util.*;
  */
 class Porter implements Serializable
 {
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = -72097756069341400L;
 	private char[] b;
 	private int i, /* offset into b */
 	i_end, /* offset to end of stemmed word */
 	j, k;
-	private static final int INC = 50;
+	private final int INC = 50;
 	/* unit of size whereby b is increased */
 	// A static singleton instance to support calling the instance methods.
 	// It might be better to make this whole thing a static class
-	private static Porter instance = new Porter();
-	private static final Cache equivCache = new Cache();
-	private static final Map stemCache = new HashMap();
-	public static boolean equivStems(Comparable word1, Comparable word2)
+	//private static Porter instance = new Porter();
+	//private static Porter instance = null;
+	private final Cache equivCache = new Cache();
+	private final Map stemCache = new HashMap();
+	private TERpara params = null;
+	
+	/*public static Porter getInstance(TERpara params)
+	{
+		if(instance == null)
+			instance = new Porter(params);
+		return instance;
+	}*/
+	
+	public boolean equivStems(Comparable word1, Comparable word2)
 	{
 		return equivStems(word1.toString(), word2.toString());
 	}
-	public static boolean equivStems(Comparable word1, ArrayList<Comparable<String>> w2)
+	public boolean equivStems(Comparable word1, ArrayList<Comparable<String>> w2)
 	{
 		for(Comparable<String> word2 : w2)
 		{	
@@ -71,7 +92,7 @@ class Porter implements Serializable
 		}
 		return false;
 	}
-	public static boolean equivStems(String word1, String word2)
+	public boolean equivStems(String word1, String word2)
 	{
 		if (equivCache.hasValue(word1, word2))
 			return equivCache.isTrue(word1, word2);
@@ -82,14 +103,14 @@ class Porter implements Serializable
 			return value;
 		}
 	}
-	public static void clearCache()
+	public void clearCache()
 	{
 		stemCache.clear();
 		equivCache.clear();
 	}
-	public static Set getEquivalents(String word)
+	public Set getEquivalents(String word)
 	{
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.USE_PORTER))
+		if (params.para().get_boolean(TERpara.OPTIONS.USE_PORTER))
 			return equivCache.getEquivalents(word);
 		else
 		{
@@ -98,14 +119,15 @@ class Porter implements Serializable
 			return set;
 		}
 	}
-	public static String stem(String word)
+	public String stem(String word)
 	{
-		if (!(TERpara.para().get_boolean(TERpara.OPTIONS.USE_PORTER)))
+		if (!(params.para().get_boolean(TERpara.OPTIONS.USE_PORTER)))
 			return word;
 		String stem = (String) stemCache.get(word);
 		if (stem == null)
 		{
-			stem = instance.stem0(word).intern();
+			//stem = instance.stem0(word).intern();
+			stem = stem0(word).intern();
 			stemCache.put(word, stem);
 		}
 		return stem;
@@ -123,6 +145,13 @@ class Porter implements Serializable
 		i = 0;
 		i_end = 0;
 	}
+	
+	public Porter(TERpara params)
+	{
+		this();
+		this.params = params;
+	}
+	
 	/**
 	 * Add a character to the word being stemmed. When you are finished adding
 	 * characters, you can call stem(void) to stem the word.
@@ -664,7 +693,7 @@ class Porter implements Serializable
 	 * must be done outside the Stemmer class. Usage: Stemmer file-name
 	 * file-name ...
 	 */
-	private static void test(String[] args)
+	private void test(String[] args)
 	{
 		char[] w = new char[501];
 		Porter s = new Porter();
@@ -733,6 +762,10 @@ class Porter implements Serializable
 	public static void main(String[] args)
 	{
 		// System.out.println("EQUIV STEM: " + equivStems("own","owner"));
-		System.out.println(stem("an"));
+		String[] args_terp = {"-p", "terp.params"};
+		TERpara params = new TERpara(args_terp);
+		//Porter p = Porter.getInstance(params);
+		Porter p = new Porter(params);
+		System.out.println(p.stem("an"));
 	}
 }
