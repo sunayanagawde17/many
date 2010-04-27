@@ -20,6 +20,10 @@ import java.util.Vector;
 
 public class TERinputScores extends TERinput
 {
+	protected int in_hyp_scores_format = 0;
+	protected int in_ref_scores_format = 0;
+	protected int max_num_refs_scores = 0;
+	
 	private List<String> untok_scores_data = new ArrayList<String>();
 	private List<float[]> tok_scores_data = new ArrayList<float[]>();
 
@@ -97,7 +101,7 @@ public class TERinputScores extends TERinput
 		{
 			for (TERid tid : getHypIds(sysid, plainid))
 			{
-				if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!hasHypSeg(tid)))
+				if ((params.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!hasHypSeg(tid)))
 				{
 					System.err.println("WARNING TERinput.getAllHypsScoresTok : no hypothesis for system " + sysid
 							+ " ... skipping ...");
@@ -197,41 +201,50 @@ public class TERinputScores extends TERinput
 		lst.add(seg_i);
 		return;
 	}
-	public TERinputScores()
+	
+	private TERinputScores(){}
+	
+	/*public TERinputScores(String hyp_fn, String ref_fn, TERpara params)
 	{
-	}
-	public TERinputScores(String hyp_fn, String ref_fn, boolean ignore_setid)
-	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		load_hyp(hyp_fn);
 		load_ref(ref_fn);
 	}
-	public TERinputScores(String hyp_fn, String ref_fn, String reflen_fn, boolean ignore_setid)
+	public TERinputScores(String hyp_fn, String ref_fn, String reflen_fn, TERpara params)
 	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		load_hyp(hyp_fn);
 		load_ref(ref_fn);
 		load_len(reflen_fn);
 	}
-	public TERinputScores(String[] hyp_fn, String ref_fn, String reflen_fn, boolean ignore_setid)
+	public TERinputScores(String[] hyp_fn, String ref_fn, String reflen_fn, TERpara params)
 	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		load_ref(ref_fn);
 		load_len(reflen_fn);
 		for (String hfn : hyp_fn)
 			load_hyp(hfn);
-	}
+	}*/
 
 	public TERinputScores(String[] hyp_fn, String[] hyp_scores_fn, String ref_fn, String ref_scores_fn,
-			String reflen_fn, boolean ignore_setid)
+			String reflen_fn, TERpara params)
 	{
-		this.ignore_setid = ignore_setid;
+		this.params = params;
+		//this.ignore_setid = ignore_setid;
+		this.ignore_setid = params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID);
 		
 		//System.err.println(" ---- Loading reference");
 		load_ref(ref_fn);
 		//System.err.println(" ---- Loading reference scores ...");
 		load_ref_scores(ref_scores_fn);
 		load_len(reflen_fn);
+		
 		
 		for (int i = 0; i < hyp_fn.length; i++)
 		{
@@ -240,21 +253,20 @@ public class TERinputScores extends TERinput
 			//System.err.println(" ---- Loading hypotheses scores ...");
 			load_hyp_scores(hyp_scores_fn[i]);
 		}
-		
 	}
-
+	
 	public void load_ref_scores(String ref_scores_fn)
 	{
 		LinkedHashMap<TERid, List<String>> segs = new LinkedHashMap<TERid, List<String>>();
 		int form = load_file(ref_scores_fn, segs);
-		in_ref_format = form;
+		in_ref_scores_format = form;
 		for (Map.Entry<TERid, List<String>> me : segs.entrySet())
 		{
 			TERid id = me.getKey();
 			List<String> lst = me.getValue();
-			if (lst.size() > max_num_refs)
+			if (lst.size() > max_num_refs_scores)
 			{
-				max_num_refs = lst.size();
+				max_num_refs_scores = lst.size();
 			}
 			for (String s : lst)
 			{
@@ -267,7 +279,7 @@ public class TERinputScores extends TERinput
 	{
 		LinkedHashMap<TERid, List<String>> segs = new LinkedHashMap<TERid, List<String>>();
 		int form = load_file(hyp_scores_fn, segs);
-		in_hyp_format = form;
+		in_hyp_scores_format = form;
 		for (Map.Entry<TERid, List<String>> me : segs.entrySet())
 		{
 			TERid id = me.getKey();

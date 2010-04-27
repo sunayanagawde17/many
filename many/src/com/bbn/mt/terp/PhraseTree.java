@@ -3,13 +3,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.Vector;
 public class PhraseTree
 {
-	private HashMap<Comparable, NodeNext> _root = new HashMap();
+	private HashMap<Comparable, NodeNext> _root = new HashMap<Comparable, NodeNext>();
 	private int num_nodes = 1;
 	private int num_terms = 0;
 	private int num_entries = 0;
@@ -22,12 +20,12 @@ public class PhraseTree
 	}
 	// Add a paraphrase of sequence_a to sequence_b with cost
 	// This is not symmetric! You need to add twice to have symmetric rules
-	public boolean insert(Comparable[] seq_a, Comparable[] seq_b,
+	public boolean insert(Comparable<String>[] seq_a, Comparable<String>[] seq_b,
 			phrase_cost cost)
 	{
 		return _insert(seq_a, seq_b, cost, _root);
 	}
-	private boolean _insert(Comparable[] seq_a, Comparable[] seq_b,
+	private boolean _insert(Comparable<String>[] seq_a, Comparable<String>[] seq_b,
 			phrase_cost cost, Map<Comparable, NodeNext> node)
 	{
 		NodeNext cur = null;
@@ -35,10 +33,10 @@ public class PhraseTree
 			return false;
 		for (int i = 0; i < seq_a.length; i++)
 		{
-			Comparable nk = seq_a[i];
+			Comparable<String> nk = seq_a[i];
 			if (node.containsKey(nk))
 			{
-				cur = (NodeNext) node.get(nk);
+				cur = node.get(nk);
 			}
 			else
 			{
@@ -97,8 +95,8 @@ public class PhraseTree
 	{
 		return depth;
 	}
-	public ArrayList retrieve_all(Comparable[] seq_a, int ind_a,
-			Comparable[] seq_b, int ind_b)
+	public ArrayList retrieve_all(Comparable<String>[] seq_a, int ind_a,
+			Comparable<String>[] seq_b, int ind_b)
 	{
 		ArrayList toret = new ArrayList(10); // Arbitrary start point
 		_retrieve_all(seq_a, ind_a, seq_b, ind_b, toret, _root, 0);
@@ -113,8 +111,8 @@ public class PhraseTree
 		_retrieve_all(seq_a, ind_a, seq_b, ind_b, toret, startnodes, 0);
 		return toret;
 	}
-	public phrase_cost retrieve_exact(Comparable[] seq_a, int start_a,
-			int len_a, Comparable[] seq_b, int start_b, int len_b)
+	public phrase_cost retrieve_exact(Comparable<String>[] seq_a, int start_a,
+			int len_a, Comparable<String>[] seq_b, int start_b, int len_b)
 	{
 		phrase_cost pc = _retrieve_exact(seq_a, start_a, len_a, seq_b, start_b,
 				len_b);
@@ -122,8 +120,8 @@ public class PhraseTree
 			return null;
 		return new phrase_cost(pc);
 	}
-	public phrase_cost retrieve_exact(Comparable[][] seq_a, int start_a,
-			int len_a, Comparable[] seq_b, int start_b, int len_b)
+	public phrase_cost retrieve_exact(Comparable<String>[][] seq_a, int start_a,
+			int len_a, Comparable<String>[] seq_b, int start_b, int len_b)
 	{
 		phrase_cost pc = _retrieve_exact(seq_a, start_a, len_a, seq_b, start_b,
 				len_b);
@@ -131,14 +129,14 @@ public class PhraseTree
 			return null;
 		return new phrase_cost(pc);
 	}
-	private void _retrieve_all(Comparable[] seq_a, int ind_a,
-			Comparable[] seq_b, int ind_b, ArrayList toret, Map node, int len_a)
+	private void _retrieve_all(Comparable<String>[] seq_a, int ind_a,
+			Comparable<String>[] seq_b, int ind_b, ArrayList toret, Map node, int len_a)
 	{
 		if (node == null)
 			return;
 		if ((ind_a + len_a) < seq_a.length)
 		{
-			Comparable k = seq_a[ind_a + len_a];
+			Comparable<String> k = seq_a[ind_a + len_a];
 			if (node.containsKey(k))
 			{
 				NodeNext cur = (NodeNext) node.get(k);
@@ -187,8 +185,8 @@ public class PhraseTree
 		}
 	}
 	
-	private phrase_cost _retrieve_exact(Comparable[] seq_a, int start_a,
-			int len_a, Comparable[] seq_b, int start_b, int len_b)
+	private phrase_cost _retrieve_exact(Comparable<String>[] seq_a, int start_a,
+			int len_a, Comparable<String>[] seq_b, int start_b, int len_b)
 	{
 		Map node = _root;
 		NodeNext cur = null;
@@ -210,11 +208,11 @@ public class PhraseTree
 			return null;
 		return cur.getPhraseCost(seq_b, start_b, len_b);
 	}
-	private phrase_cost _retrieve_exact(Comparable[][] seq_a, int start_a,
-			int len_a, Comparable[] seq_b, int start_b, int len_b)
+	private phrase_cost _retrieve_exact(Comparable<String>[][] seq_a, int start_a,
+			int len_a, Comparable<String>[] seq_b, int start_b, int len_b)
 	{
-		ArrayList<Map> theMaps = new ArrayList<Map>();
-		ArrayList<Map> nextMaps = new ArrayList<Map>(), tmp = null;
+		ArrayList<Map<Comparable, NodeNext>> theMaps = new ArrayList<Map<Comparable, NodeNext>>();
+		ArrayList<Map<Comparable, NodeNext>> nextMaps = new ArrayList<Map<Comparable, NodeNext>>(), tmp = null;
 		theMaps.add(_root);
 		ArrayList<NodeNext> theNodes = new ArrayList<NodeNext>();
 		
@@ -225,14 +223,14 @@ public class PhraseTree
 			if(theMaps.isEmpty() == false)
 			{
 				theNodes.clear();
-				for(Map node : theMaps) //foreach sub tree
+				for(Map<Comparable, NodeNext> node : theMaps) //foreach sub tree
 				{
 					for(int b=0; b<seq_a[a + start_a].length; b++) //foreach word in the mesh
 					{
 						if (node == null) break;
 						if (node.containsKey(seq_a[a + start_a][b]))
 						{
-							cur = (NodeNext) node.get(seq_a[a + start_a][b]);
+							cur = node.get(seq_a[a + start_a][b]);
 							theNodes.add(cur);
 							nextMaps.add(cur.next);
 						}
@@ -314,31 +312,31 @@ public class PhraseTree
 	}
 	protected class NodeNext
 	{
-		public Map poss_b = null;
-		public Map next = null;
-		public Map getCreateNext()
+		public Map<Comparable<String>[], phrase_cost> poss_b = null;
+		public Map<Comparable, NodeNext> next = null;
+		public Map<Comparable, NodeNext> getCreateNext()
 		{
 			if (next == null)
 			{
-				next = new TreeMap();
+				next = new TreeMap<Comparable, NodeNext>();
 			}
 			num_nodes++;
 			return next;
 		}
-		public boolean add_term(Comparable[] seq, phrase_cost cost)
+		public boolean add_term(Comparable<String>[] seq, phrase_cost cost)
 		{
 			boolean newterm = false;
 			if (poss_b == null)
 			{
 				newterm = true;
-				poss_b = new TreeMap(pt_compare);
+				poss_b = new TreeMap<Comparable<String>[], phrase_cost>(pt_compare);
 			}
 			poss_b.put(seq, cost);
 			return newterm;
 		}
-		public ArrayList find_matches(int len_a, Comparable[] seq_b, int ind_b)
+		public ArrayList<OffsetScore> find_matches(int len_a, Comparable<String>[] seq_b, int ind_b)
 		{
-			ArrayList al = new ArrayList(10);
+			ArrayList<OffsetScore> al = new ArrayList<OffsetScore>(10);
 			find_matches(len_a, seq_b, ind_b, al);
 			return al;
 		}
@@ -378,7 +376,7 @@ public class PhraseTree
 			}
 			return;
 		}
-		public phrase_cost getPhraseCost(Comparable[] seq_b, int start_b,
+		public phrase_cost getPhraseCost(Comparable<String>[] seq_b, int start_b,
 				int len_b)
 		{
 			if (poss_b == null)
@@ -387,7 +385,7 @@ public class PhraseTree
 			while (it.hasNext())
 			{
 				Map.Entry e = (Map.Entry) it.next();
-				Comparable[] bseq = (Comparable[]) e.getKey();
+				Comparable<String>[] bseq = (Comparable<String>[]) e.getKey();
 				if (bseq.length != len_b)
 					continue;
 				phrase_cost cost = (phrase_cost) e.getValue();
@@ -419,9 +417,9 @@ public class PhraseTree
 		{
 			path = new ArrayList(depth + 1);
 			path.add(root.keySet().iterator());
-			path_hm = new ArrayList(depth + 1);
+			path_hm = new ArrayList<Map>(depth + 1);
 			path_hm.add(root);
-			seq_a = new ArrayList(depth);
+			seq_a = new ArrayList<Comparable<String>>(depth);
 			cur = null;
 			curIter = null;
 			seq_b = null;
@@ -448,8 +446,8 @@ public class PhraseTree
 			if ((curIter != null) && curIter.hasNext())
 			{
 				// Is there another seq_b at this node?
-				seq_b = (Comparable[]) curIter.next();
-				_cost = (phrase_cost) cur.poss_b.get(seq_b);
+				seq_b = curIter.next();
+				_cost = cur.poss_b.get(seq_b);
 				return this.toString();
 			}
 			else if (curIter != null)
@@ -507,7 +505,7 @@ public class PhraseTree
 					// This shouldn't be possible.
 					return next();
 				}
-				Comparable na = (Comparable) ci.next();
+				Comparable<String> na = (Comparable<String>) ci.next();
 				seq_a.add(na);
 				cur = (NodeNext) cm.get(na);
 				curIter = null;
@@ -536,18 +534,18 @@ public class PhraseTree
 			return "" + cost() + " <p>" + TERutilities.join(" ", phrase_a())
 					+ "</p> <p>" + TERutilities.join(" ", phrase_b()) + "</p>";
 		}
-		public Comparable[] phrase_a()
+		public Comparable<String>[] phrase_a()
 		{
-			Comparable[] tr = new Comparable[seq_a.size()];
+			Comparable<String>[] tr = new Comparable[seq_a.size()];
 			for (int i = 0; i < seq_a.size(); i++)
 			{
-				tr[i] = (Comparable) seq_a.get(i);
+				tr[i] = seq_a.get(i);
 			}
 			return tr;
 		}
-		public Comparable[] phrase_b()
+		public Comparable<String>[] phrase_b()
 		{
-			Comparable[] tr = new Comparable[seq_b.length];
+			Comparable<String>[] tr = new Comparable[seq_b.length];
 			for (int i = 0; i < seq_b.length; i++)
 			{
 				tr[i] = seq_b[i];
@@ -564,11 +562,11 @@ public class PhraseTree
 		}
 		private phrase_cost _cost = null;
 		private NodeNext cur = null;
-		private Iterator curIter = null;
+		private Iterator<Comparable<String>[]> curIter = null;
 		private ArrayList path;
 		private ArrayList path_hm;
-		private ArrayList seq_a = null;
-		private Comparable[] seq_b = null;
+		private ArrayList<Comparable<String>> seq_a = null;
+		private Comparable<String>[] seq_b = null;
 	}
 	protected static class PhraseComparator implements Comparator
 	{
@@ -608,5 +606,5 @@ public class PhraseTree
 			return 0;
 		}
 	}
-	private static Comparator pt_compare = new PhraseComparator();
+	private static Comparator<? super Comparable<String>[]> pt_compare = new PhraseComparator();
 }

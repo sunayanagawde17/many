@@ -17,25 +17,28 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Hashtable;
-import java.util.StringTokenizer;
 import java.util.Vector;
 import java.util.regex.Pattern;
 public class Graph
 {
 	public static final String null_node = "NULL";
-	private final String node_prefix = "I=";
-	private final String link_prefix = "J=";
+	public static final int null_node_id = 0;
+	protected final String node_prefix = "I=";
+	protected final String link_prefix = "J=";
 
-	private final String CN_NAME_PREFIX = "name";
-	private final String CN_NUMALIGNS_PREFIX = "numaligns";
-	private final String CN_ALIGN_PREFIX = "align";
+	protected static final String CN_NAME_PREFIX = "name";
+	protected static final String CN_NUMALIGNS_PREFIX = "numaligns";
+	protected static final String CN_ALIGN_PREFIX = "align";
+	protected static final String CN_SYS_WEIGHTS_PREFIX = "sysweights";
+	protected static final String CN_NBSYS_PREFIX = "nbsys";
+	protected static final String CN_NUMSYS_PREFIX = "numsys";
 
 	public Vector<Node> nodes = null;
-	Node firstNode = null, lastNode = null;
+	public Node firstNode = null, lastNode = null;
 	Integer nbLinks;
 	Integer ids; // for word ids
 	Integer nodeIds, linkIds;
-	Hashtable<String, Integer> wordsID = null;
+	Hashtable<String, Integer> wordToId = null;
 	Hashtable<Integer, String> idToWord = null;
 	Hashtable<Float, Node> timeToNode = null;
 	Hashtable<Integer, Node> idToNode = null;
@@ -79,7 +82,7 @@ public class Graph
 	}
 
 	public Graph(ArrayList<ArrayList<ArrayList<Comparable<String>>>> aligns,
-			ArrayList<ArrayList<ArrayList<Float>>> aligns_scores, Float[] priors)
+			ArrayList<ArrayList<ArrayList<Float>>> aligns_scores, float[] priors)
 	{
 		init();
 		Node curNode;
@@ -96,11 +99,14 @@ public class Graph
 		}
 		for (int i = 0; i < aligns.size(); i++) // foreach backbone system
 		{
-			curNode = createNode(st++);
-			// link NULL word, probability of backbone
-			createLink(firstNode, curNode, priors[i], priors[i], 0);
-			// System.err.println("Le precNode du CN "+i+" devient "+curNode.time);
-			precNodes.add(i, curNode);
+			if(aligns.get(i) != null)
+			{
+				curNode = createNode(st++);
+				// link NULL word, probability of backbone
+				createLink(firstNode, curNode, priors[i], priors[i], 0);
+				// System.err.println("Le precNode du CN "+i+" devient "+curNode.time);
+				precNodes.add(i, curNode);
+			}
 		}
 		// int b = 0;
 		while (!over)
@@ -108,12 +114,11 @@ public class Graph
 			// System.err.println("******boucle "+b); b++;
 			over = true;
 			int i = 0;
-			for(int nb=0; nb<aligns.size(); nb++)
-			//for (ArrayList<ArrayList<Comparable<String>>> curCN : aligns) // foreach backbone system
+			for(int nb=0; nb<aligns.size(); nb++) // foreach backbone system
 			{
 				ArrayList<ArrayList<Comparable<String>>> curCN = aligns.get(nb);
 				// System.err.println("***********system "+i+" precNode = "+precNodes.elementAt(i).time+" "+precNodes.size());
-				if (pos < curCN.size())
+				if (curCN != null && pos < curCN.size())
 				{
 					ArrayList<ArrayList<Float>> curCN_scores = aligns_scores.get(nb);
 					// System.err.println("*************il convient ");
@@ -127,7 +132,6 @@ public class Graph
 					ArrayList<Float> mesh_scores = curCN_scores.get(pos);
 					
 					for(int nw=0; nw < curCN.get(pos).size(); nw++)
-					//for (Comparable<String> w : curCN.get(pos))
 					{
 						// System.err.println("*************le link "+l);
 						// System.err.println("*************le link : "+curGraph.idToWord.get(l.wordId);
@@ -149,14 +153,16 @@ public class Graph
 		lastNode = createNode(st);
 		for (int i = 0; i < aligns.size(); i++) // foreach backbone system
 		{
-			// link NULL word, probability of backbone
-			// System.err.println("-------le link : "+precNodes.elementAt(i).time+" <. "+lastNode.time);
-			createLink(precNodes.elementAt(i), lastNode, 1.0, 1.0, 0);
+			if(aligns.get(i) != null)
+			{
+				// link NULL word, probability of backbone
+				// System.err.println("-------le link : "+precNodes.elementAt(i).time+" <. "+lastNode.time);
+				createLink(precNodes.elementAt(i), lastNode, 1.0f, 1.0f, 0);
+			}
 		}
 		// System.err.println("Graph::Graph() : END");
 	}
-
-	public Graph(Vector<Graph> vec, Vector<Double> scores)
+	public Graph(Vector<Graph> vec, Vector<Float> scores)
 	{
 		// System.err.println("Graph::Graph() : START");
 		init();
@@ -221,7 +227,79 @@ public class Graph
 		{
 			// link NULL word, probability of backbone
 			// System.err.println("-------le link : "+precNodes.elementAt(i).time+" <. "+lastNode.time);
-			createLink(precNodes.elementAt(i), lastNode, 1.0, 1.0, 0);
+			createLink(precNodes.elementAt(i), lastNode, 1.0f, 1.0f, 0);
+		}
+		// System.err.println("Graph::Graph() : END");
+	}
+	
+	
+
+	public Graph(ArrayList<MANYcn> cns, float[] priors)
+	{
+		// System.err.println("Graph::Graph(ArrayList<Graph>, double[]) : START");
+		init();
+		Node curNode;
+		Vector<Node> precNodes = new Vector<Node>(cns.size());
+		int wID;
+		float st = 0.0f;
+		firstNode = createNode(st++);
+		int pos = 0;
+		boolean over = false;
+		if (cns.size() != priors.length)
+		{
+			System.err.println("Graph() : number of systems ("+cns.size()+") different from number of scores ("+priors.length+") ... exiting");
+			return;
+		}
+		for (int i = 0; i < priors.length; i++) // foreach backbone system
+		{
+			curNode = createNode(st++);
+			// link NULL word, probability of backbone
+			createLink(firstNode, curNode, priors[i], priors[i], 0);
+			// System.err.println("Le precNode du CN "+i+" devient "+curNode.time);
+			precNodes.add(i, curNode);
+		}
+		// int b = 0;
+		while (!over)
+		{
+			// System.err.println("******boucle "+b); b++;
+			over = true;
+			int i = 0;
+			for (Graph curGraph : cns) // foreach backbone system
+			{
+				// System.err.println("***********system "+i+" precNode = "+precNodes.elementAt(i).time+" "+precNodes.size());
+				if (pos < curGraph.nodes.size() - 1)
+				{
+					// System.err.println("*************il convient ");
+					over = false;
+					curNode = createNode(st++);
+					// System.err.println("*************apres createNode pos = "+pos);
+					// copy all nextLinks of CN between precNodes[i] and curNode
+					// System.err.println("************* nb link = "+curGraph.nodes.elementAt(pos).nextLinks.size());
+					for (Link l : curGraph.nodes.elementAt(pos).nextLinks)
+					{
+						// System.err.println("*************le link "+l);
+						// System.err.println("*************le link : "+curGraph.idToWord.get(l.wordId);
+						wID = createWord(curGraph.idToWord.get(l.wordId));
+						// System.err.println("Importation du mot "+curGraph.idToWord.get(l.wordId)+" donne ID="+wID);
+						createLink(precNodes.elementAt(i), curNode, l.posterior, l.posterior, wID);
+						// System.err.println("sys "+i+" createLink : "+precNodes.elementAt(i).time+" "+curNode.time);
+					}
+					precNodes.removeElementAt(i);
+					precNodes.add(i, curNode);
+					// System.err.println("BOUCLE : Le precNode du CN " + i +
+					// " devient " + curNode.time);
+					i++;
+				}
+			}
+			pos++;
+			// if(over) System.err.println("on a fini !!");
+		}
+		lastNode = createNode(st);
+		for (int i = 0; i < priors.length; i++) // foreach backbone system
+		{
+			// link NULL word, probability of backbone
+			// System.err.println("-------le link : "+precNodes.elementAt(i).time+" <. "+lastNode.time);
+			createLink(precNodes.elementAt(i), lastNode, 1.0f, 1.0f, 0);
 		}
 		// System.err.println("Graph::Graph() : END");
 	}
@@ -251,13 +329,13 @@ public class Graph
 		// wordsID.clear(); }
 		// else { System.err.println("Graph:init : allocating wordsId ");
 		// wordsID = new Hashtable<String, Integer>(); }
-		if (wordsID != null)
+		if (wordToId != null)
 		{
-			wordsID.clear();
+			wordToId.clear();
 		}
 		else
 		{
-			wordsID = new Hashtable<String, Integer>();
+			wordToId = new Hashtable<String, Integer>();
 		}
 
 		// if(idToWord != null) {
@@ -311,50 +389,95 @@ public class Graph
 		// System.err.println("Graph END");
 	}
 
-	private Link createLink(Node startNode, Node endNode, double probability, Integer wID)
+	protected Link createLink(Node startNode, Node endNode, float probability, Integer wID)
 	{
 		nbLinks++;
 		return new Link(startNode, endNode, probability, probability, wID, linkIds++);
 	}
-	private Link createLink(Node startNode, Node endNode, double likelihood, double probability, int wID)
+	protected Link createLink(Node startNode, Node endNode, float likelihood, float probability, int wID)
 	{
 		nbLinks++;
 		return new Link(startNode, endNode, likelihood, probability, wID, linkIds++);
 	}
-	public void deleteLink(Link l)
+	protected Link createLink(Node startNode, Node endNode, float likelihood, float probability, int wID, int sysid)
+	{
+		nbLinks++;
+		return new Link(startNode, endNode, likelihood, probability, wID, sysid, linkIds++);
+	}
+	
+	protected Link createUniqueLink(Node startNode, Node endNode, float probability, float posterior, String w)
+	{
+		int wID = createWord(w);
+		return createUniqueLink(startNode, endNode, probability, wID);
+	}
+	
+	protected Link createUniqueLink(Node startNode, Node endNode, float probability, Integer wID)
+	{
+		for(Link l : startNode.nextLinks)
+		{
+			//if a link as same startNode and endNode, and same word, then just sum up the probs.
+			if(l.endNode == endNode && l.wordId == wID)
+			{
+				l.posterior += probability;
+				l.probability += probability;
+				return l;
+			}
+		}
+		//otherwise, create a new link as usual
+		return createLink(startNode, endNode, probability, probability, wID, linkIds++);
+	}
+	protected Link createUniqueLink(Node startNode, Node endNode, float probability, float posterior, int wID)
+	{
+		System.err.println("Creating unique link : from "+startNode.time+" to "+endNode.time+" w="+idToWord.get(wID)+" (id="+wID+")");
+		for(Link l : startNode.nextLinks)
+		{
+			System.err.println("Link observed : "+l.toString());
+			//if a link as same startNode and endNode, and same word, then just sum up the probs.
+			if(l.endNode == endNode && l.wordId == wID)
+			{
+				l.posterior += posterior;
+				l.probability += probability;
+				return l;
+			}
+		}
+		//otherwise, create a new link as usual
+		System.err.println("Creating new Link ... ");
+		return createLink(startNode, endNode, probability, posterior, wID, linkIds++);
+	}
+	
+	
+	
+	protected void deleteLink(Link l)
 	{
 		nbLinks--;
 		l = null;
 	}
-	private int createWord(String w)
+	protected int createWord(String w)
 	{
+		//System.err.print("Creating word >"+w+"<");
 		Integer wID;
-		if (wordsID.contains(w)) // the word is known, get its ID
+		if (wordToId.containsKey(w)) // the word is known, get its ID
 		{
-			// cout << "Known word '" << word << "' ... id=" << wordsID[word] <<
-			// endl;
-			wID = wordsID.get(w); // on recupere son id
+			//System.err.println(" : already existing !");
+			wID = wordToId.get(w); // on recupere son id
 		}
 		else
 		{
-			// add word int the map
-			// cout << "Adding word >" << word << "< in the map, id=" << Ids <<
-			// " ... ";
+			//System.err.println(" : a brand new one !");
 			String s = new String(w);
 			Integer i = new Integer(ids);
-			wordsID.put(s, i);
+			wordToId.put(s, i);
 			wID = i;
 			idToWord.put(i, s);
 			ids++;
-			// cout << "OK -" << wordsID[s] << "-" << endl;
 		}
 		return wID;
 	}
 
-	private Node createNode(float time)
+	protected Node createNode(float time)
 	{
 		Node node = null;
-		if (timeToNode.contains(time))
+		if (timeToNode.containsKey(time))
 		{
 			node = timeToNode.get(time);
 			// System.err.println("Graph::createNode : on connait le node "+time);
@@ -479,8 +602,8 @@ public class Graph
 
 		String word;
 		int startNode = 0, endNode = 0;
-		double lmProb = 1;
-		double prob = lmProb;
+		float lmProb = 1;
+		float prob = lmProb;
 		Integer wID = -1, linkId;
 
 		if (line == null || line.equals(""))
@@ -507,7 +630,7 @@ public class Graph
 			}
 			else if ("A".equals(t[0]) || "a".equals(t[0]))
 			{
-				prob = Double.parseDouble(t[1]);
+				prob = Float.parseFloat(t[1]);
 			}
 			else if ("W".equals(t[0]) || "w".equals(t[0]))
 			{
@@ -529,70 +652,11 @@ public class Graph
 		}
 		// System.err.println("********parseLink : END");
 	}
-	public void readCN(String file)
+	
+	public String getWordFromId(Integer id)
 	{
-		String line = null;
-		double score;
-		int id, wID;
-		// cerr << "********readHTK : START" << endl;
-		try
-		{
-			BufferedReader reader = new BufferedReader(new FileReader(file));
-			while ((line = reader.readLine()) != null)
-			{
-				if (line.length() > 0)
-				{
-					if (line.startsWith(CN_NAME_PREFIX))
-					{
-					}
-					else if (line.startsWith(CN_NUMALIGNS_PREFIX))
-					{
-					}
-					else if (line.startsWith(CN_ALIGN_PREFIX))
-					{
-						StringTokenizer st = new StringTokenizer(line);
-						String s = st.nextToken();
-						if (s != "align")
-						{
-							System.exit(0);
-						}
-						s = st.nextToken();
-						try
-						{
-							id = Integer.parseInt(s);
-						}
-						catch (NumberFormatException nfe)
-						{
-							nfe.printStackTrace();
-						}
-
-						while (st.hasMoreTokens())
-						{
-							// un mot un score .. etc
-							s = st.nextToken();
-							wID = createWord(s);
-							s = st.nextToken();
-							try
-							{
-								score = Double.parseDouble(s);
-							}
-							catch (NumberFormatException nfe)
-							{
-								nfe.printStackTrace();
-							}
-						}
-					}
-					else
-					{
-						// System.err.println("Ignoring line >" + line + "<");
-					}
-				}
-			}
-		}
-		catch (IOException ioe)
-		{
-			System.err.println("I/O erreur durant file" + file + " " + ioe);
-		}
-		// cerr << "********load : END" << endl;
+		return idToWord.get(id);
 	}
+	
+	
 }

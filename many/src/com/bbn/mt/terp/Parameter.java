@@ -1,9 +1,12 @@
 package com.bbn.mt.terp;
-import java.util.HashMap;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.regex.*;
 import java.util.Formatter;
-import java.io.*;
+import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import com.bbn.mt.terp.TERpara.OPTIONS;
 public class Parameter
 {
@@ -11,7 +14,7 @@ public class Parameter
 	private static Pattern para_pat = Pattern.compile("^([^:]+):(.*)$");
 	public static enum OPT_TYPES
 	{
-		FILENAME, STRING, INTEGER, DOUBLE, BOOLEAN, DOUBLELIST, INTLIST, STRINGLIST, PARAMFILE, SHOWUSAGE
+		FILENAME, STRING, INTEGER, DOUBLE, BOOLEAN, DOUBLELIST, INTLIST, STRINGLIST, PARAMFILE, SHOWUSAGE, FLOATLIST
 	}
 	private HashMap<Object, Object> paras = new HashMap<Object, Object>();
 	private HashMap<Object, String> param_names = new HashMap<Object, String>();
@@ -104,7 +107,13 @@ public class Parameter
 				false));
 		add_opt(Parameter.OPT_TYPES.BOOLEAN, OPTIONS.CREATE_CONFUSION_NETWORK,
 				"Create confusion Network (boolean)", new Boolean(false));
-
+		add_opt(Parameter.OPT_TYPES.INTEGER, OPTIONS.REF_IDX,
+				"Reference Index (integer)", new Integer(0));
+		add_opt(Parameter.OPT_TYPES.DOUBLELIST, OPTIONS.SYS_WEIGHTS,
+				"Systems weights (double list)", new double[0]);
+		add_opt(Parameter.OPT_TYPES.INTLIST, OPTIONS.HYP_IDX,
+				"Hypotheses Indexes (integer list)", new int[0]);
+		
 		// Set command-line flags
 		addCmdBoolFlag(OPTIONS.NORMALIZE, 'N', "true");
 		addCmdBoolFlag(OPTIONS.CASEON, 's', "true");

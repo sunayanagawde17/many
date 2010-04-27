@@ -11,21 +11,25 @@
  */
 
 package edu.cmu.sphinx.linguist.dictionary;
+
 import java.io.Serializable;
 
-/**
- *  Provides a classification of words
- */
+/** Provides a classification of words */
+
 public class WordClassification implements Serializable {
 
-    private String classificationName;
+    private final String classificationName;
 
-    /**
-     * Unconstructable...
-     */
+
+    /** Unconstructable...
+     * @param classificationName*/
     private WordClassification(String classificationName) {
-	this.classificationName = classificationName;
+        this.classificationName = classificationName;
     }
 
+
+    public String getClassificationName() {
+        return classificationName;
+    }
 }
 

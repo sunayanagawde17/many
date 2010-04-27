@@ -1,7 +1,5 @@
 package com.bbn.mt.terp.phrasedb;
 
-import java.util.Arrays;
-import java.util.List;
 
 public class PhraseEntry implements Comparable<PhraseEntry> {
     public PhraseEntry() {

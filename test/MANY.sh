@@ -14,7 +14,7 @@ I_SMARTLY_SET_THE_VARIABLES=0;
 # Tools
 many_dir=TO_SET
 add_id=$many_dir/scripts/add_id.sh
-gen_sphinx_config=$many_dir/scripts/genSphinxConfig.pl
+gen_MANY_config=$many_dir/scripts/gen_MANY_config.pl
 many=$many_dir/many/lib/MANY.jar
 
 # Files
@@ -46,9 +46,12 @@ priors=(0.4 0.25 0.25 0.1)
 fudge=0.1
 null=0.00001
 length=0.3
+max_nb_tokens=1000
+nbest_length=0
 
 #Others
 nb_sys=${#hypotheses[@]}
+nb_threads=1
 clean=1
 declare -i i
 
@@ -171,15 +174,19 @@ done
 
 if [ $uselm3g == 0 ]
 then
-	echo "CMD : $gen_sphinx_config -nbsys $nb_sys -h $lmserverhost -port $lmserverport -f $fudge -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
+	echo "CMD : $gen_MANY_config -nbsys $nb_sys -h $lmserverhost -port $lmserverport -f $fudge -m $nb_threads -maxtok $max_nb_tokens \
+	-nbest $nbest_length -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
 	-para $paraphrases -s $stoplist -w $wordnet \> $many_config";
-	$gen_sphinx_config -nbsys $nb_sys -h $lmserverhost -port $lmserverport -f $fudge -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
-	-para $paraphrases -s $stoplist -w $wordnet > $many_config;
+	$gen_MANY_config -nbsys $nb_sys -h $lmserverhost -port $lmserverport -f $fudge -m $nb_threads -maxtok $max_nb_tokens \
+	-nbest $nbest_length -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
+	-para $paraphrases -s $stoplist -w $wordnet -dd > $many_config;
 	echo " done !\n";
 else
-	echo "CMD : $gen_sphinx_config -nbsys $nb_sys -lm3g $lm3g -f $fudge -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
+	echo "CMD : $gen_MANY_config -nbsys $nb_sys -lm3g $lm3g -f $fudge -m $nb_threads -maxtok $max_nb_tokens \
+	-nbest $nbest_length -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
 	-para $paraphrases -s $stoplist -w $wordnet \> $many_config";
-	$gen_sphinx_config -nbsys $nb_sys -lm3g $lm3g -f $fudge -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
+	$gen_MANY_config -nbsys $nb_sys -lm3g $lm3g -f $fudge -m $nb_threads -maxtok $max_nb_tokens \
+	-nbest $nbest_length -n $null -l $length -c ${costs[@]} -p ${priors[@]} \
 	-para $paraphrases -s $stoplist -w $wordnet > $many_config;
 fi
 
@@ -188,12 +195,12 @@ fi
 enc=UTF-8
 #enc=ISO_8859_1
 
-echo "CMD : java -Xmx4G -Dfile.encoding=$enc -cp $many edu.lium.mt.MANY $many_config"
+echo "CMD : java -Xmx8G -Dfile.encoding=$enc -cp $many edu.lium.mt.MANY $many_config"
 echo -n "Starting MANY system combination ..."
-java -Xmx4G -Dfile.encoding=$enc -cp $many edu.lium.mt.MANY $many_config
+java -Xmx8G -Dfile.encoding=$enc -cp $many edu.lium.mt.MANY $many_config
 echo " OK "
 
-popd $1
+popd 
 
 echo -n "MANY.sh - end time is : "
 date

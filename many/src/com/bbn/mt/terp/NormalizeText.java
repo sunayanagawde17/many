@@ -26,7 +26,8 @@ public class NormalizeText
 	private static boolean _initialized = false;
 
 	private static int num_processed = 0;
-
+	private static TERpara params = null;
+	
 	public static void setRemPunc(boolean b)
 	{
 		remove_punc = b;
@@ -58,24 +59,25 @@ public class NormalizeText
 		return s;
 	}
 
-	public static void reinit()
+	public static void reinit(TERpara params)
 	{
 		_initialized = false;
 		equivStrings.clear();
-		init();
+		init(params);
 	}
 
-	public static void init()
+	public static void init(TERpara p)
 	{
+		params = p;
 		if (!_initialized)
 		{
 			// System.err.println("NORMALIZE = "+TERpara.para().get(TERpara.OPTIONS.NORMALIZE));
-			setStdNormalize((Boolean) TERpara.para().get(TERpara.OPTIONS.NORMALIZE));
-			setNewNorm((Boolean) TERpara.para().get(TERpara.OPTIONS.NEWNORM));
-			setLowerCase(!(Boolean) TERpara.para().get(TERpara.OPTIONS.CASEON));
-			setRemPunc((Boolean) TERpara.para().get(TERpara.OPTIONS.NOPUNCTUATION));
-			setNumberNormalize((Boolean) TERpara.para().get(TERpara.OPTIONS.NORM_NUMS));
-			load_norm_file((String) TERpara.para().get(TERpara.OPTIONS.NORM_FILE));
+			setStdNormalize((Boolean) params.para().get(TERpara.OPTIONS.NORMALIZE));
+			setNewNorm((Boolean) params.para().get(TERpara.OPTIONS.NEWNORM));
+			setLowerCase(!(Boolean) params.para().get(TERpara.OPTIONS.CASEON));
+			setRemPunc((Boolean) params.para().get(TERpara.OPTIONS.NOPUNCTUATION));
+			setNumberNormalize((Boolean) params.para().get(TERpara.OPTIONS.NORM_NUMS));
+			load_norm_file((String) params.para().get(TERpara.OPTIONS.NORM_FILE));
 			_initialized = true;
 		}
 	}

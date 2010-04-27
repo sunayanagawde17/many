@@ -19,133 +19,129 @@ import edu.cmu.sphinx.linguist.WordSequence;
 import edu.cmu.sphinx.linguist.dictionary.Dictionary;
 import edu.cmu.sphinx.linguist.dictionary.SimpleDictionary;
 import edu.cmu.sphinx.linguist.dictionary.Word;
-import edu.cmu.sphinx.linguist.language.ngram.LanguageModelOnServer;
-import edu.cmu.sphinx.linguist.language.ngram.large.LargeTrigramModel;
+import edu.cmu.sphinx.linguist.language.ngram.NetworkLanguageModel;
+import edu.cmu.sphinx.linguist.language.ngram.large.LargeNGramModel;
 import edu.cmu.sphinx.util.LogMath;
 import edu.cmu.sphinx.util.props.Configurable;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
-import edu.cmu.sphinx.util.props.PropertyType;
-import edu.cmu.sphinx.util.props.Registry;
+import edu.cmu.sphinx.util.props.S4Boolean;
+import edu.cmu.sphinx.util.props.S4Component;
+import edu.cmu.sphinx.util.props.S4Double;
+import edu.cmu.sphinx.util.props.S4Integer;
 
 public class TokenPassDecoder implements Configurable
 {
+	/** The property that defines the logMath component. */
+	@S4Component(type = LogMath.class)
 	public final static String PROP_LOG_MATH = "logMath";
-	/**
-	 * A sphinx property for the language model to be used by this grammar
-	 */
-	public final static String PROP_LANGUAGE_MODEL = "trigramModel";
+	
+	/** The property that defines the network language model component. */
+	@S4Component(type = NetworkLanguageModel.class)
 	public final static String PROP_LANGUAGE_MODEL_ON_SERVER = "lmonserver";
-	/**
-	 * Property that defines the dictionary to use for this grammar
-	 */
+	
+	/** The property that defines the local ngram language model component. */
+	@S4Component(type = LargeNGramModel.class)
+	public final static String PROP_LANGUAGE_MODEL = "ngramModel";
+	
+	/** The property that defines the dictionary component. */
+	@S4Component(type = SimpleDictionary.class)
 	public final static String PROP_DICTIONARY = "dictionary";
-	/**
-	 * Property that defines the default value for maximum number of tokens considered
-	 */
-	public final static int PROP_MAX_NB_TOKENS_DEFAULT = 1000;
-	/**
-	 * Property that defines the maximum number of tokens considered
-	 */
+	
+	/** The property that defines the max number of tokens considered */
+	@S4Integer(defaultValue = 1000)
 	public final static String PROP_MAX_NB_TOKENS = "max_nb_tokens";
-	/**
-	 * Property that defines the fudge factor
-	 */
+
+	/** The property that defines the fudge factor */
+	@S4Double(defaultValue = 1.0)
 	public final static String PROP_FUDGE_FACTOR = "fudge";
-	/**
-	 * Property that defines the default fudge factor value
-	 */	
-	public final static float PROP_FUDGE_FACTOR_DEFAULT = 1.0f;
+	
+	/** The property that defines the penalty when crossing null arc */
+	@S4Double(defaultValue = 1.0)
 	public final static String PROP_NULL_PENALTY = "null_penalty";
-	public final static float PROP_NULL_PENALTY_DEFAULT = 1.0f;
+	
+	/** The property that defines the length penalty */
+	@S4Double(defaultValue = 1.0)
 	public final static String PROP_LENGTH_PENALTY = "length_penalty";
-	public final static float PROP_LENGTH_PENALTY_DEFAULT = 1.0f;
+	
+	/** The property that defines the size of the nbest-list */
+	@S4Integer(defaultValue = 0)
 	public final static String PROP_NBEST_LENGTH = "nbest_length";
-	public final static int PROP_NBEST_LENGTH_DEFAULT = 0;
 	
-	public final static String PROP_USE_LM_3G = "uselm3g";
-	public final static boolean PROP_USE_LM_3G_DEFAULT = false;
+	/** The property that defines the debugging */
+	@S4Boolean(defaultValue = false)
+	public final static String PROP_DEBUG = "debug";
 	
-	private LargeTrigramModel languageModel;
-	boolean DEBUG = false;
+	/** The property that determines whether to use the local lm or network lm */
+	@S4Boolean(defaultValue = false)
+	public final static String PROP_USE_NGRAM_LM = "useNGramModel";
+	
+	private LargeNGramModel languageModel;
+	private boolean DEBUG = false;
 	private LogMath logMath;
 	private Dictionary dictionary;
 	private Logger logger;
 	private String name;
 	private TokenList tokens[];
 	private TokenList lastTokens;
-	private LanguageModelOnServer lm;
+	private NetworkLanguageModel networklm;
 	private int maxNbTokens;
 	private float fudge;
 	private float null_penalty;
 	private float length_penalty;
 	private int nbest_length;
-	private boolean useLM3g;
+	private boolean useNGramModel;
 	
 	public void allocate() throws java.io.IOException
 	{
+		//logger.info("TokenPassDecoder::allocate");
 		dictionary.allocate();
 		
-		if(useLM3g == true)
+		if(useNGramModel == true)
 		{
 			languageModel.allocate();
 		}
 		else
 		{
-			lm.allocate();
+			networklm.allocate();
 		}
 		tokens = new TokenList[2];
 		for (int i = 0; i < tokens.length; i++)
 			tokens[i] = new TokenList();
 		lastTokens = new TokenList();
+		//logger.info("TokenPassDecoder::allocate OK");
 	}
 	public void deallocate()
 	{  
 		dictionary.deallocate();
 		
-		if(useLM3g)
+		if(useNGramModel)
 			languageModel.deallocate();
 		else
-			lm.deallocate();
-	}
-	
-	public void register(String name, Registry registry)
-			throws PropertyException
-	{
-		this.name = name;
-		registry.register(PROP_LOG_MATH, PropertyType.COMPONENT);
-		registry.register(PROP_DICTIONARY, PropertyType.COMPONENT);
-		registry.register(PROP_MAX_NB_TOKENS, PropertyType.INT);
-		registry.register(PROP_FUDGE_FACTOR, PropertyType.FLOAT);
-		registry.register(PROP_NULL_PENALTY, PropertyType.FLOAT);
-		registry.register(PROP_LENGTH_PENALTY, PropertyType.FLOAT);
-		registry.register(PROP_NBEST_LENGTH, PropertyType.INT);
-		registry.register(PROP_LANGUAGE_MODEL, PropertyType.COMPONENT);
-		registry.register(PROP_LANGUAGE_MODEL_ON_SERVER, PropertyType.COMPONENT);
-		registry.register(PROP_USE_LM_3G, PropertyType.BOOLEAN);
+			networklm.deallocate();
 	}
 	
 	public void newProperties(PropertySheet ps) throws PropertyException
 	{
 		logger = ps.getLogger();
-		logMath = (LogMath) ps.getComponent(PROP_LOG_MATH, LogMath.class);
-		dictionary = (Dictionary) ps.getComponent(PROP_DICTIONARY,
-				Dictionary.class);
+		logMath = (LogMath) ps.getComponent(PROP_LOG_MATH);
+		dictionary = (Dictionary) ps.getComponent(PROP_DICTIONARY);
 		
-		useLM3g = ps.getBoolean(PROP_USE_LM_3G, PROP_USE_LM_3G_DEFAULT);
-		if(useLM3g)
+		useNGramModel = ps.getBoolean(PROP_USE_NGRAM_LM);
+		if(useNGramModel)
 		{
-			languageModel = (LargeTrigramModel) ps.getComponent(PROP_LANGUAGE_MODEL, LargeTrigramModel.class);
+			languageModel = (LargeNGramModel) ps.getComponent(PROP_LANGUAGE_MODEL);
 		}
 		else
-		{	lm = (LanguageModelOnServer) ps.getComponent(PROP_LANGUAGE_MODEL_ON_SERVER,
-				LanguageModelOnServer.class);
+		{	networklm = (NetworkLanguageModel) ps.getComponent(PROP_LANGUAGE_MODEL_ON_SERVER);
 		}
-		maxNbTokens = ps.getInt(PROP_MAX_NB_TOKENS, PROP_MAX_NB_TOKENS_DEFAULT);
-		fudge = 10.0f * ps.getFloat(PROP_FUDGE_FACTOR, PROP_FUDGE_FACTOR_DEFAULT);
-		null_penalty = ps.getFloat(PROP_NULL_PENALTY, PROP_NULL_PENALTY_DEFAULT);
-		length_penalty = 10.0f * ps.getFloat(PROP_LENGTH_PENALTY, PROP_LENGTH_PENALTY_DEFAULT);
-		nbest_length = ps.getInt(PROP_NBEST_LENGTH, PROP_NBEST_LENGTH_DEFAULT);
+		maxNbTokens = ps.getInt(PROP_MAX_NB_TOKENS);
+		fudge = 10.0f * ps.getFloat(PROP_FUDGE_FACTOR);
+		null_penalty = ps.getFloat(PROP_NULL_PENALTY);
+		length_penalty = 10.0f * ps.getFloat(PROP_LENGTH_PENALTY);
+		nbest_length = ps.getInt(PROP_NBEST_LENGTH);
+		DEBUG = ps.getBoolean(PROP_DEBUG);
+		System.err.println("DEBUG : "+DEBUG);
 	}
 	
 	public String getName()
@@ -167,23 +163,29 @@ public class TokenPassDecoder implements Configurable
 			logger.info("Initialization OK !");
 		}
 		
-		System.err.println("TokenPassDecoder::decode parameters ");
-		System.err.println(" - fudge : "+fudge);
-		System.err.println(" - null penalty : " + null_penalty);
-		System.err.println(" - length penalty : "+length_penalty);
-		System.err.println(" - Max nb tokens : "+maxNbTokens);
-		System.err.println(" - N-Best length : "+nbest_length);
+		if(DEBUG)
+		{
+			System.err.println("TokenPassDecoder::decode parameters ");
+			System.err.println(" - fudge : "+fudge);
+			System.err.println(" - null penalty : " + null_penalty);
+			System.err.println(" - length penalty : "+length_penalty);
+			System.err.println(" - Max nb tokens : "+maxNbTokens);
+			System.err.println(" - N-Best length : "+nbest_length);
+		}
 		
 		int origine = 0, cible = 1;
-		//int maxHist = languageModel.getMaxDepth();
-		int maxHist = lm.getMaxDepth();
+		int maxHist = 0;
+		if(useNGramModel)
+			maxHist = languageModel.getMaxDepth();
+		else
+			maxHist = networklm.getMaxDepth();
 
 		//logger.info("maxHist = "+maxHist);
 		ArrayList<Node> nodes = new ArrayList<Node>();
 		Node n = lat.firstNode;
 		nodes.add(n);
 		
-		float maxScore = -Float.MAX_VALUE;
+		double maxScore = -Double.MAX_VALUE;
 		
 		int i=0;  
 		Token t = new Token(0.0f, null, n, null, null);
@@ -208,7 +210,7 @@ public class TokenPassDecoder implements Configurable
 			else
 				logger.info("tokens[origine] is not null ...");*/
 			
-			maxScore = -Float.MAX_VALUE;
+			maxScore = -Double.MAX_VALUE;
 			
 			for (Token pred : tokens[origine])
 			{
@@ -233,38 +235,39 @@ public class TokenPassDecoder implements Configurable
 				
 					if(pred.history == null)
 					{
-						if(Graph.null_node.equals(ws))
+						if(Graph.null_node.equals(ws)) //this is a first link !!!
 						{
 							//ns = WordSequence.getWordSequence(new Word(ws, null, true));
-							ns = WordSequence.getWordSequence(new Word(ws, null, true));
-							lmns = WordSequence.getWordSequence(new Word(ws, null, true));
-							//logger.info("... Creating word sequence with only "+ws+" (null_node) gives -> "+ns.toText()+" [(1) for LM : "+lmns.toText()+" ]");
-							
-							nscore += logMath.linearToLog(null_penalty); //null_penalty
+							ns = new WordSequence(new Word[]{new Word(ws, null, true)});
+							lmns = new WordSequence(new Word[]{new Word(ws, null, true)});
+							//logger.info("... Creating word sequence for first link "+ws+" (null_node) gives -> "+ns.toText()+" [(1) for LM : "+lmns.toText()+" ]");
+							//logger.info("l.posterior = "+l.posterior);
+							//nscore += logMath.linearToLog(null_penalty); //null_penalty
+							nscore += logMath.linearToLog(l.posterior);
 						}
 						else
 						{
 							w = dictionary.getWord(ws);
 							if(w == ((SimpleDictionary)dictionary).getUnknownWord())
 							{
-								ns = WordSequence.getWordSequence(new Word(ws, null, false));
+								ns = new WordSequence(new Word[]{new Word(ws, null, false)});
 							}
 							else
 							{
-								ns = WordSequence.getWordSequence(w);
+								ns = new WordSequence(new Word[]{w});
 							}
-							lmns = WordSequence.getWordSequence(w);
+							lmns = new WordSequence(new Word[]{w});
 							//logger.info("... Creating word sequence with only "+ws+" gives -> "+ns.toText()+" [(2) for LM : "+lmns.toText()+" ]");
 							
 							float lmscore = 0.0f;
-							if(useLM3g == true)
+							if(useNGramModel == true)
 							{
 								lmscore = languageModel.getProbability(ns.withoutWord(Graph.null_node));
 								//logger.info("Proba lm : "+lmscore);
 							}
 							else
 							{
-								lmscore = lm.getProbability(lmns.withoutWord(Graph.null_node));
+								lmscore = networklm.getProbability(lmns.withoutWord(Graph.null_node));
 								//logger.info("Proba lmonserver : "+lmscore);
 							}
 							nscore = nscore + (fudge * lmscore);
@@ -295,14 +298,14 @@ public class TokenPassDecoder implements Configurable
 							//logger.info("... Adding "+ws+" to the word sequence, -> "+ns.toText()+" [(4) for LM : "+lmns.toText()+" ]");
 							
 							float lmscore = 0.0f;
-							if(useLM3g == true)
+							if(useNGramModel == true)
 							{
 								lmscore = languageModel.getProbability(ns.withoutWord(Graph.null_node));
 								//logger.info("Proba lm : "+lmscore);
 							}
 							else
 							{
-								lmscore = lm.getProbability(lmns.withoutWord(Graph.null_node));
+								lmscore = networklm.getProbability(lmns.withoutWord(Graph.null_node));
 								//logger.info("Proba lmonserver : "+lmscore);
 							}
 							nscore = nscore + (fudge * lmscore);
@@ -379,13 +382,13 @@ public class TokenPassDecoder implements Configurable
 				while (best != null && best.node != lat.firstNode)
 				{
 					if(DEBUG) 
-						logger.info(best.history.getNewWord().getSpelling() + " " + best.node.id+" time="+best.node.time);
-					if(Graph.null_node.equals(best.history.getNewWord().getSpelling()) == false)
+						logger.info(best.history.getNewestWord().getSpelling() + " " + best.node.id+" time="+best.node.time);
+					if(Graph.null_node.equals(best.history.getNewestWord().getSpelling()) == false)
 					{	
-						obest.add(0, best.history.getNewWord().getSpelling());
+						obest.add(0, best.history.getNewestWord().getSpelling());
 					}
 					else if(DEBUG) 
-						logger.info("found null_node : "+best.history.getNewWord().getSpelling());
+						logger.info("found null_node : "+best.history.getNewestWord().getSpelling());
 					best = best.pred;
 				}
 				
@@ -408,7 +411,7 @@ public class TokenPassDecoder implements Configurable
 			if(DEBUG)
 				logger.info("Looking for best token (1 hypo per line format) ...");
 			Token best = null;
-			float max = -Float.MAX_VALUE;
+			double max = -Double.MAX_VALUE;
 			for (Token last : lastTokens)
 			{	if (last.score > max)
 				{
@@ -423,12 +426,12 @@ public class TokenPassDecoder implements Configurable
 			while (best != null && best.node != lat.firstNode)
 			{
 				if(DEBUG)
-					logger.info(best.history.getNewWord().getSpelling() + " " + best.node.id+" time="+best.node.time);
-				if(Graph.null_node.equals(best.history.getNewWord().getSpelling()) == false)
+					logger.info(best.history.getNewestWord().getSpelling() + " " + best.node.id+" time="+best.node.time);
+				if(Graph.null_node.equals(best.history.getNewestWord().getSpelling()) == false)
 				{	
-					obest.add(0, best.history.getNewWord().getSpelling());
+					obest.add(0, best.history.getNewestWord().getSpelling());
 				}
-				else if(DEBUG) logger.info("un null_node : "+best.history.getNewWord().getSpelling());
+				else if(DEBUG) logger.info("un null_node : "+best.history.getNewestWord().getSpelling());
 				best = best.pred;
 			}
 			
@@ -445,7 +448,7 @@ public class TokenPassDecoder implements Configurable
 		}
 	}
 	
-	private void normalizeToken(TokenList lesTokens, float maxi) 
+	private void normalizeToken(TokenList lesTokens, double maxi) 
 	{
 		for (Token t: lesTokens) 
 		    t.score -=maxi;

@@ -20,6 +20,9 @@ public class Token implements Comparable<Token>
 	Node node;
 	WordSequence history;
 	WordSequence lmhistory;
+	
+	public Token(){}
+	
 	public Token(float score, Token pred, Node node, WordSequence history, WordSequence lmhistory)
 	{
 		this.score = score;
@@ -28,6 +31,11 @@ public class Token implements Comparable<Token>
 		this.history = history;
 		this.lmhistory = lmhistory;
 	}
+	
+	public Node getNode() { return node;}
+	public float getScore() { return score;}
+	public void setScore(float score) { this.score = score;}
+	public WordSequence getHistory() { return history;}
 	
 	public int compareTo(Token tok)
 	{

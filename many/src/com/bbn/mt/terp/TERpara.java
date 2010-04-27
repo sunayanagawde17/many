@@ -1,13 +1,19 @@
 package com.bbn.mt.terp;
 
-public abstract class TERpara
+public class TERpara
 {
-	private static Parameter _para = new Parameter();
-	public static Parameter para()
+	private Parameter _para = new Parameter();
+	
+	public TERpara(String[] args)
+	{
+		getOpts(args);
+	}
+	
+	public Parameter para()
 	{
 		return _para;
 	}
-	public static void getOpts(String[] args)
+	public void getOpts(String[] args)
 	{
 		if(_para == null)
 			_para = new Parameter();
@@ -28,15 +34,13 @@ public abstract class TERpara
 		return;
 	}
 
-	public static void allocate()
+	public void allocate()
 	{
 		_para = new Parameter();
-		System.gc();
 	}
-	public static void deallocate()
+	public void deallocate()
 	{
 		_para = null;
-		System.gc();
 	}
 	
 	public static enum OPTIONS
@@ -45,10 +49,12 @@ public abstract class TERpara
 		// PHRASE_TABLE,
 		ADJUST_PHRASETABLE_FUNC, ADJUST_PHRASETABLE_PARAMS, ADJUST_PHRASETABLE_MIN, ADJUST_PHRASETABLE_MAX, USE_PORTER, USE_WORDNET,
 		// MULTI_REF,
-		WORD_CLASS_FNAME, PARAM_FILE, FILTER_PHRASE_TABLE, DUMP_PHRASETABLE, SHIFT_CONSTRAINT, SHIFT_STOP_LIST, USE_AVE_LEN, SHOW_ALL_REFS, WORDNET_DB_DIR, WEIGHT_FILE, GENERALIZE_NUMBERS, NORM_NUMS, NORM_FILE, NEWNORM, NORM_PHRASE_TABLE, SUM_DUP_PHRASES, PHRASE_DB, IGNORE_MISSING_HYP, IGNORE_SETID, VERBOSE, CREATE_CONFUSION_NETWORK, TRY_ALL_SHIFTS
+		WORD_CLASS_FNAME, PARAM_FILE, FILTER_PHRASE_TABLE, DUMP_PHRASETABLE, SHIFT_CONSTRAINT, SHIFT_STOP_LIST, USE_AVE_LEN, SHOW_ALL_REFS, WORDNET_DB_DIR, WEIGHT_FILE, GENERALIZE_NUMBERS, NORM_NUMS, NORM_FILE, NEWNORM, NORM_PHRASE_TABLE, SUM_DUP_PHRASES, PHRASE_DB, IGNORE_MISSING_HYP, IGNORE_SETID, VERBOSE, 
+		// Confusion Networks
+		CREATE_CONFUSION_NETWORK, TRY_ALL_SHIFTS, REF_IDX, SYS_WEIGHTS, HYP_IDX
 	}
 
-	public static void init()
+	/*public void init()
 	{
 		_para.add_opt(Parameter.OPT_TYPES.BOOLEAN, OPTIONS.VERBOSE, "Verbose (boolean)", new Boolean(false));
 		_para.add_opt(Parameter.OPT_TYPES.BOOLEAN, OPTIONS.NORMALIZE, "Normalize (boolean)", new Boolean(false));
@@ -132,7 +138,11 @@ public abstract class TERpara
 				false));
 		_para.add_opt(Parameter.OPT_TYPES.BOOLEAN, OPTIONS.CREATE_CONFUSION_NETWORK,
 				"Create confusion Network (boolean)", new Boolean(false));
-
+		_para.add_opt(Parameter.OPT_TYPES.DOUBLELIST, OPTIONS.SYS_WEIGHTS,
+				"Systems weights (double list)", new double[0]);
+		_para.add_opt(Parameter.OPT_TYPES.INTLIST, OPTIONS.HYP_IDX,
+				"Hypotheses Indexes (integer list)", new int[0]);
+		
 		// Set command-line flags
 		_para.addCmdBoolFlag(OPTIONS.NORMALIZE, 'N', "true");
 		_para.addCmdBoolFlag(OPTIONS.CASEON, 's', "true");
@@ -203,7 +213,7 @@ public abstract class TERpara
 				"    specify a file that contains a list of words that cannot be shifted without a non-stop word",
 				"\nUsage for phrase table adjustment functions:", PhraseTable.valid_adjust_funcs(),};
 		_para.set_usage_statement(TERutilities.join("\n", usage_ar), true);
-	}
+	}*/
 
 	
 }

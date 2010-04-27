@@ -22,10 +22,12 @@ import java.util.TreeMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import edu.cmu.sphinx.util.Timer;
+import edu.cmu.sphinx.util.TimerPool;
+import edu.cmu.sphinx.util.props.ConfigurationManagerUtils;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
 import edu.cmu.sphinx.util.props.PropertyType;
-import edu.cmu.sphinx.util.props.Registry;
+
 /**
  * Creates a dictionary by reading in an ASCII-based Sphinx-3 format dictionary.
  * Each line of the dictionary specifies the word, followed by spaces or tab,
@@ -79,26 +81,7 @@ public class SimpleDictionary implements Dictionary
 	private Map<String, Word> wordDictionary;
 	private Map<String, Word> fillerDictionary;
 	private Timer loadTimer;
-	/*
-	 * (non-Javadoc)
-	 * 
-	 * @see edu.cmu.sphinx.util.props.Configurable#register(java.lang.String,
-	 * edu.cmu.sphinx.util.props.Registry)
-	 */
-	public void register(String name, Registry registry)
-			throws PropertyException
-	{
-		this.name = name;
-		registry.register(PROP_DICTIONARY, PropertyType.RESOURCE);
-		registry.register(PROP_FILLER_DICTIONARY, PropertyType.RESOURCE);
-		registry.register(PROP_ADD_SIL_ENDING_PRONUNCIATION,
-				PropertyType.BOOLEAN);
-		registry.register(PROP_WORD_REPLACEMENT, PropertyType.STRING);
-		registry.register(PROP_ALLOW_MISSING_WORDS, PropertyType.BOOLEAN);
-		registry.register("compound", PropertyType.BOOLEAN);
-		registry.register(PROP_CREATE_MISSING_WORDS, PropertyType.BOOLEAN);
-		registry.register(PROP_UNIT_MANAGER, PropertyType.COMPONENT);
-	}
+	
 	/*
 	 * (non-Javadoc)
 	 * 
@@ -109,7 +92,7 @@ public class SimpleDictionary implements Dictionary
 	public void newProperties(PropertySheet ps) throws PropertyException
 	{
 		logger = ps.getLogger();
-		wordDictionaryFile = ps.getResource(PROP_DICTIONARY);
+		wordDictionaryFile = ConfigurationManagerUtils.getResource(PROP_DICTIONARY, ps);
 	}
 	/*
 	 * (non-Javadoc)
@@ -129,7 +112,7 @@ public class SimpleDictionary implements Dictionary
 	{
 		if (!allocated)
 		{
-			loadTimer = Timer.getTimer("DictionaryLoad");
+			loadTimer = TimerPool.getTimer(this, "DictionaryLoad");
 			loadTimer.start();
 			// NOTE: "location" can be null here, in which case the
 			// "wordDictionaryFile" and "fillerDictionaryFile" should
@@ -144,6 +127,7 @@ public class SimpleDictionary implements Dictionary
 				dump();// this can help
 			logger.info("end loading dicts : " + wordDictionary.size() + " ch:"
 					+ choix.size());
+			allocated = true;
 		}
 	}
 	/*
@@ -358,13 +342,8 @@ public class SimpleDictionary implements Dictionary
 			Word word = getWord(text);
 			List<Word> pronunciations = choix.get(text.toLowerCase());
 			result += (word);
-			if (word.getClasse() != null)
-			{
-				result += " " + word.getClasse();
-				result += " ";
-			}
-			else
-				result += " ";
+			result += " ";
+			
 			if (pronunciations != null)
 				for (Word w : pronunciations)
 					result += ("   " + w.toString() + " ");

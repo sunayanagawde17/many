@@ -46,14 +46,17 @@ import edu.cmu.sphinx.util.props.Configurable;
 import edu.cmu.sphinx.util.props.ConfigurationManager;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
-import edu.cmu.sphinx.util.props.Registry;
+import edu.cmu.sphinx.util.props.S4String;
 
 public class TERplus implements Configurable
 {
-	public final static String PROP_TERP_PARAMS_DEFAULT = "terp.params";
+	
+	/** The property that defines the paraphrase-table filename */
+	@S4String(defaultValue = "terp.params")
 	public final static String PROP_TERP_PARAMS = "terpParams";
+	
 	private String name;
-	private Logger logger;
+	public Logger logger;
 	private String terpParams = null;
 	
 	private boolean DEBUG = false;
@@ -72,6 +75,8 @@ public class TERplus implements Configurable
 	private double OutputElapsedSec = 0.0;
 	private double OverallElapsedSec = 0.0;
 	private int numScored = 0;
+	
+	private TERpara params = null;
 	
 	public static void main(String[] args)
 	{
@@ -93,12 +98,8 @@ public class TERplus implements Configurable
 		{
 			System.err.println("I/O error during initialization: \n   " + ioe);
 			return;
-		} catch (InstantiationException e)
-		{
-			System.err.println("Error during initialization: \n  " + e + "\n Message : " + e.getMessage());
-			e.printStackTrace();
-			return;
-		} catch (PropertyException e)
+		}
+		catch (PropertyException e)
 		{
 			System.err.println("Error during initialization: \n  " + e);
 			return;
@@ -118,7 +119,6 @@ public class TERplus implements Configurable
 			System.err.println("Can't find TERplus " + args[0]);
 			return;
 		}
-		System.gc();
 		
 		terplus.allocate();
 		terplus.run();
@@ -126,14 +126,17 @@ public class TERplus implements Configurable
 
 	public void allocate()
 	{
-		String[] params = {"-p", terpParams};
+		String[] paramFile = {"-p", terpParams};
 		//System.err.println("TERplus : allocate : calling getOpts >"+TERutilities.join("|", params)+"<");
-		TERpara.getOpts(params);
+		if(params == null)
+			params = new TERpara(paramFile);
+		else
+			params.getOpts(paramFile);
 	}
 
 	public void deallocate()
 	{
-		TERpara.deallocate();
+		params.deallocate();
 	}
 	
 	public TERplus()
@@ -146,7 +149,10 @@ public class TERplus implements Configurable
 		this.write_to_disk = write_to_disk;
 	}
 
-	
+	public TERpara getParams()
+	{
+		return params;
+	}
 
 	public TERcost getLastCostFunc()
 	{
@@ -177,7 +183,7 @@ public class TERplus implements Configurable
 	// Load everything from scratch
 	public TERoutput run()
 	{
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.CREATE_CONFUSION_NETWORK))
+		if (params.para().get_boolean(TERpara.OPTIONS.CREATE_CONFUSION_NETWORK))
 		{
 			//logger.info("Creating confusion network ...");
 			return run_cn(false, true, true);
@@ -207,22 +213,22 @@ public class TERplus implements Configurable
 	{
 		long OverallStartTime = System.nanoTime();
 		long InitStartTime = System.nanoTime();
-		String ref_fn = TERpara.para().get_string(TERpara.OPTIONS.REF);
-		String[] hyp_fn = TERpara.para().get_stringlist(TERpara.OPTIONS.HYP);
-		String reflen_fn = TERpara.para().get_string(TERpara.OPTIONS.REFLEN);
-		String out_pfx = TERpara.para().get_string(TERpara.OPTIONS.OUTPFX);
-		ArrayList<String> formats = new ArrayList<String>(Arrays.asList(TERpara.para().get_stringlist(TERpara.OPTIONS.FORMATS)));
-		boolean caseon = TERpara.para().get_boolean(TERpara.OPTIONS.CASEON);
-		WordNet.setWordNetDB(TERpara.para().get_string(TERpara.OPTIONS.WORDNET_DB_DIR));
-		NormalizeText.init();
+		String ref_fn = params.para().get_string(TERpara.OPTIONS.REF);
+		String[] hyp_fn = params.para().get_stringlist(TERpara.OPTIONS.HYP);
+		String reflen_fn = params.para().get_string(TERpara.OPTIONS.REFLEN);
+		String out_pfx = params.para().get_string(TERpara.OPTIONS.OUTPFX);
+		ArrayList<String> formats = new ArrayList<String>(Arrays.asList(params.para().get_stringlist(TERpara.OPTIONS.FORMATS)));
+		boolean caseon = params.para().get_boolean(TERpara.OPTIONS.CASEON);
+		WordNet.setWordNetDB(params.para().get_string(TERpara.OPTIONS.WORDNET_DB_DIR));
+		NormalizeText.init(params);
 
 		// 2. init variables
 		double TOTAL_EDITS = 0.0;
 		double TOTAL_WORDS = 0.0;
 		if (!rerun)
 		{
-			terinput = new TERinput(hyp_fn[0], ref_fn, reflen_fn, TERpara.para().get_boolean(
-					TERpara.OPTIONS.IGNORE_SETID));
+			terinput = new TERinput(hyp_fn[0], ref_fn, reflen_fn, params);
+			//.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID)
 		}
 
 		// 3. verify input formats
@@ -232,7 +238,7 @@ public class TERplus implements Configurable
 		// 4. init calculation variables
 		TERoutput[] iouts = null;
 
-		if ((Boolean) TERpara.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
+		if (params.para().get_boolean(TERpara.OPTIONS.SHOW_ALL_REFS))
 		{
 			iouts = new TERoutput[terinput.max_num_refs()];
 			String bpfx = "";
@@ -246,18 +252,18 @@ public class TERplus implements Configurable
 
 			for (int i = 0; i < iouts.length; i++)
 			{
-				iouts[i] = new TERoutput(out_pfx, formats, hyp_fn[0], ref_fn, reflen_fn, caseon, terinput);
+				iouts[i] = new TERoutput(out_pfx, formats, hyp_fn[0], ref_fn, reflen_fn, caseon, terinput, params);
 				iouts[i].refname = bpfx + i;
 			}
 		}
-		TERoutput terout = new TERoutput(out_pfx, formats, hyp_fn[0], ref_fn, reflen_fn, caseon, terinput);
+		TERoutput terout = new TERoutput(out_pfx, formats, hyp_fn[0], ref_fn, reflen_fn, caseon, terinput, params);
 
 		if (!rerun)
 		{
 			if (load_phrases)
 			{
 				System.out.println("Creating Segment Phrase Tables From DB");
-				String pt_db = TERpara.para().get_string(TERpara.OPTIONS.PHRASE_DB);
+				String pt_db = params.para().get_string(TERpara.OPTIONS.PHRASE_DB);
 				if ((pt_db != null) && (!pt_db.equals("")))
 				{
 					this.phrasedb = new PhraseDB(pt_db);
@@ -282,7 +288,7 @@ public class TERplus implements Configurable
 			{
 				for (TERid tid : terinput.getHypIds(sysid, pid))
 				{
-					if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!terinput.hasHypSeg(tid)))
+					if ((params.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!terinput.hasHypSeg(tid)))
 						continue;
 					totalToScore++;
 				}
@@ -302,11 +308,11 @@ public class TERplus implements Configurable
 			List<String[]> lens = terinput.getLenForHypTok(pid);
 			List<String> origrefs = terinput.getRefForHyp(pid);
 
-			String[][] refs_ar = (String[][]) refs.toArray(new String[0][0]);
+			String[][] refs_ar = refs.toArray(new String[0][0]);
 			String[][] lens_ar = null;
 			if (lens != null)
 			{
-				lens_ar = (String[][]) lens.toArray(new String[0][0]);
+				lens_ar = lens.toArray(new String[0][0]);
 			}
 			calc.setRefLen(lens_ar);
 			boolean b = calc.init(pid);
@@ -320,7 +326,7 @@ public class TERplus implements Configurable
 			{
 				for (TERid tid : terinput.getHypIds(sysid, pid))
 				{
-					if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!terinput.hasHypSeg(tid)))
+					if ((params.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!terinput.hasHypSeg(tid)))
 					{
 						continue;
 					}
@@ -328,7 +334,7 @@ public class TERplus implements Configurable
 					List<String> orighyps = terinput.getAllHyp(tid);
 					curScored++;
 					System.out.println("Processing " + tid);
-					if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+					if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 					{
 						PhraseTable pt = calc.getCostFunc().getPhraseTable();
 						if (pt != null)
@@ -348,17 +354,17 @@ public class TERplus implements Configurable
 
 					if ((refs.size() == 0) || ((refs.size() == 1) && (refs.get(0).length == 0)))
 					{
-						System.out.println("WARNING: Blank or empty reference for segment: " + tid);
+						logger.info("WARNING: Blank or empty reference for segment: " + tid);
 					}
 
 					if (hyp.length == 0)
 					{
-						System.out.println("WARNING: Blank or empty hypothesis for segment: " + tid);
+						logger.info("WARNING: Blank or empty hypothesis for segment: " + tid);
 					}
 
 					long startTime = System.nanoTime();
 					TERalignment[] irefs = null;
-					if ((Boolean) TERpara.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
+					if ((Boolean) params.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
 						irefs = new TERalignment[refs.size()];
 
 					TERalignment result = score_all_refs(hyp, refs_ar, calc, irefs, orighyps, origrefs);
@@ -368,13 +374,13 @@ public class TERplus implements Configurable
 					long endTime = System.nanoTime();
 					long elapsedTime = endTime - startTime;
 					double eTsec = elapsedTime / 1.0E09;
-					if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+					if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 					{
 						System.out.printf("  Time: %.3f sec.  Score: %.2f (%.2f / %.2f)\n", eTsec, result.score(),
 								result.numEdits, result.numWords);
 					}
 					numScored++;
-					if ((Boolean) TERpara.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
+					if ((Boolean) params.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
 					{
 						for (int i = 0; i < irefs.length; i++)
 						{
@@ -388,16 +394,17 @@ public class TERplus implements Configurable
 				}
 			}
 		}
-		System.out.println("Finished Calculating TERp");
+		if(DEBUG)
+			System.out.println("Finished Calculating TERp");
 		long OutputStartTime = System.nanoTime();
 		if (this.write_to_disk)
 		{
-			if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+			if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 			{
 				System.out.println("Writing output to disk.");
 			}
 			terout.output();
-			if ((Boolean) TERpara.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
+			if ((Boolean) params.para().get(TERpara.OPTIONS.SHOW_ALL_REFS))
 			{
 				for (int i = 0; i < iouts.length; i++)
 				{
@@ -412,13 +419,14 @@ public class TERplus implements Configurable
 		long OverallElapsedTime = OverallEndTime - OverallStartTime;
 		this.OverallElapsedSec += (double) OverallElapsedTime / 1.0E09;
 
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+		if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 		{
 			System.out.println(calc.get_info());
 			System.out.println(NormalizeText.get_info());
 			showTime();
 		}
-		System.out.printf("Total TER: %.2f (%.2f / %.2f)\n", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS);
+		//System.out.printf("Total TER: %.2f (%.2f / %.2f)\n", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS);
+		logger.info(String.format("Total TER: %.2f (%.2f / %.2f)\n", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS));
 		return terout;
 	}
 
@@ -426,24 +434,26 @@ public class TERplus implements Configurable
 	{
 		long OverallStartTime = System.nanoTime();
 		long InitStartTime = System.nanoTime();
-		String ref_fn = TERpara.para().get_string(TERpara.OPTIONS.REF);
-		String ref_scores_fn = TERpara.para().get_string(TERpara.OPTIONS.REF_SCORES);
-		String[] hyp_fn = TERpara.para().get_stringlist(TERpara.OPTIONS.HYP);
-		String[] hyp_scores_fn = TERpara.para().get_stringlist(TERpara.OPTIONS.HYP_SCORES);
-		String reflen_fn = TERpara.para().get_string(TERpara.OPTIONS.REFLEN);
-		String out_pfx = TERpara.para().get_string(TERpara.OPTIONS.OUTPFX);
-		ArrayList<String> formats = new ArrayList<String>(Arrays.asList(TERpara.para().get_stringlist(
+		String ref_fn = params.para().get_string(TERpara.OPTIONS.REF);
+		String ref_scores_fn = params.para().get_string(TERpara.OPTIONS.REF_SCORES);
+		String[] hyp_fn = params.para().get_stringlist(TERpara.OPTIONS.HYP);
+		String[] hyp_scores_fn = params.para().get_stringlist(TERpara.OPTIONS.HYP_SCORES);
+		String reflen_fn = params.para().get_string(TERpara.OPTIONS.REFLEN);
+		String out_pfx = params.para().get_string(TERpara.OPTIONS.OUTPFX);
+		ArrayList<String> formats = new ArrayList<String>(Arrays.asList(params.para().get_stringlist(
 				TERpara.OPTIONS.FORMATS)));
-		boolean caseon = TERpara.para().get_boolean(TERpara.OPTIONS.CASEON);
-		WordNet.setWordNetDB(TERpara.para().get_string(TERpara.OPTIONS.WORDNET_DB_DIR));
-		NormalizeText.init();
+		boolean caseon = params.para().get_boolean(TERpara.OPTIONS.CASEON);
+		
+		WordNet.setWordNetDB(params.para().get_string(TERpara.OPTIONS.WORDNET_DB_DIR));
+		NormalizeText.init(params);
 		
 		// 2. init variables
 		double TOTAL_EDITS = 0.0;
 		double TOTAL_WORDS = 0.0;
 		if (!rerun)
 		{
-			terinput_scores = new TERinputScores(hyp_fn, hyp_scores_fn, ref_fn, ref_scores_fn, reflen_fn, TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID));
+			//terinput_scores = new TERinputScores(hyp_fn, hyp_scores_fn, ref_fn, ref_scores_fn, reflen_fn, params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID));
+			terinput_scores = new TERinputScores(hyp_fn, hyp_scores_fn, ref_fn, ref_scores_fn, reflen_fn, params);
 		}
 		// 3. verify input formats
 		if (!verifyFormats(terinput_scores.in_ref_format(), terinput_scores.in_hyp_format(), formats))
@@ -452,13 +462,13 @@ public class TERplus implements Configurable
 		// 4. init calculation variables
 		
 		//TERoutput terout = new TERoutput(out_pfx, formats, hyp_fn, ref_fn, reflen_fn, caseon, terinput);
-		TERoutput terout = new TERoutput(out_pfx, formats, hyp_fn, ref_fn, reflen_fn, caseon, terinput_scores);
+		TERoutput terout = new TERoutput(out_pfx, formats, hyp_fn, ref_fn, reflen_fn, caseon, terinput_scores, params);
 		if (!rerun)
 		{
 			if (load_phrases)
 			{
 				//System.out.println("Creating Segment Phrase Tables From DB");
-				String pt_db = TERpara.para().get_string(TERpara.OPTIONS.PHRASE_DB);
+				String pt_db = params.para().get_string(TERpara.OPTIONS.PHRASE_DB);
 				if ((pt_db != null) && (!pt_db.equals("")))
 				{
 					this.phrasedb = new PhraseDB(pt_db);
@@ -479,7 +489,7 @@ public class TERplus implements Configurable
 			{
 				for (TERid tid : terinput_scores.getHypIds(sysid, pid))
 				{
-					if ((TERpara.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!terinput_scores.hasHypSeg(tid)))
+					if ((params.para().get_boolean(TERpara.OPTIONS.IGNORE_MISSING_HYP)) && (!terinput_scores.hasHypSeg(tid)))
 						continue;
 					totalToScore++;
 				}
@@ -489,10 +499,16 @@ public class TERplus implements Configurable
 		long InitEndTime = System.nanoTime();
 		long InitElapsedTime = InitEndTime - InitStartTime;
 		this.InitElapsedSec += (double) InitElapsedTime / 1.0E09;
-		//for (TERid pid : terinput.getPlainIds())
+		
+		int npid = 0;
 		for (TERid pid : terinput_scores.getPlainIds())
 		{
-			logger.info("Processing sentence "+pid);
+			if(npid % 100 == 0)
+			{
+				logger.info("Processing sentence #"+npid+" : "+pid);
+				//System.err.println("TERplus::run_cn : Processing sentence #"+npid+" : "+pid);
+			}
+			npid++;
 			// Prep as much as we can for this plain ID (useful if we have
 			// multiple systems or nbest lists)
 			List<String[]> refs = terinput_scores.getRefForHypTok(pid);
@@ -500,11 +516,11 @@ public class TERplus implements Configurable
 			
 			List<String[]> lens = terinput_scores.getLenForHypTok(pid);
 			List<String> origrefs = terinput_scores.getRefForHyp(pid);
-			String[][] refs_ar = (String[][]) refs.toArray(new String[0][0]);
+			String[][] refs_ar = refs.toArray(new String[0][0]);
 			String[][] lens_ar = null;
 			if (lens != null)
 			{
-				lens_ar = (String[][]) lens.toArray(new String[0][0]);
+				lens_ar = lens.toArray(new String[0][0]);
 			}
 			calc.setRefLen(lens_ar);
 			boolean b = calc.init(pid);
@@ -517,17 +533,23 @@ public class TERplus implements Configurable
 			// we must have 1 ref and many hyps
 			if (refs.size() > 1)
 			{
-				System.err.println("WARNING run_cn : Multiple ref detected ... only using first one");
+				logger.info("WARNING run_cn : Multiple ref detected ... only using first one");
 			}
 
 			// get all hypotheses with this plainID
+			
 			List<String[]> hyps = terinput_scores.getAllHypsTok(pid);
 			List<float[]> hyps_scores = terinput_scores.getAllHypsScoresTok(pid);
 			List<String> orighyps = terinput_scores.getAllHyps(pid);
 
 			if ((refs.size() == 0) || ((refs.size() == 1) && (refs.get(0).length == 0)))
 			{
-				System.out.println("WARNING run_cn : Blank or empty reference for segment: " + pid.id);
+				logger.info("WARNING run_cn : Blank or empty reference for segment: " + pid.id + " ... skipping !");
+				numScored++;
+				
+				terout.add_result(pid.getPlainIdent(), calc.getFakeTERAlignmentCN());
+				//terout.add_result(pid.getPlainIdent(), null);
+				continue;
 			}
 			else if(DEBUG)
 			{
@@ -541,7 +563,7 @@ public class TERplus implements Configurable
 			}
 			if (hyps.size() == 0)
 			{
-				System.out.println("WARNING run_cn : Blank or empty hypothesis for segment: " + pid.id);
+				logger.info("WARNING run_cn : no hypothesis for segment: " + pid.id);
 			}
 			else if(DEBUG)
 			{
@@ -554,16 +576,25 @@ public class TERplus implements Configurable
 				}
 			}
 
-			// OK ici on a tout ce qu'il nous faut
+			// OK we have all what we need ... let's build !
 			long startTime = System.nanoTime();
+			//logger.info("TERplus::run_cn : calling incremental_build_cn");
+			//System.err.println("TERplus::run_cn : calling incremental_build_cn");
 			TERalignmentCN result = incremental_build_cn(hyps, hyps_scores, refs_ar[0], refs_scores.get(0), calc, orighyps, origrefs);
+			//logger.info("TERplus::run_cn : incremental_build_cn DONE !!");
+			//System.err.println("TERplus::run_cn : incremental_build_cn DONE !!");
+			if(result == null)
+			{
+				logger.info("result is null ... exiting !");
+				System.exit(0);
+			}
 			
 			TOTAL_EDITS += result.numEdits;
 			TOTAL_WORDS += result.numWords;
 			long endTime = System.nanoTime();
 			long elapsedTime = endTime - startTime;
 			double eTsec = elapsedTime / 1.0E09;
-			if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+			if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 			{
 				System.out.printf("  Time: %.3f sec.  Score: %.2f (%.2f / %.2f)\n", eTsec, result.score(),
 						result.numEdits, result.numWords);
@@ -571,14 +602,15 @@ public class TERplus implements Configurable
 			numScored++;
 			terout.add_result(pid.getPlainIdent(), result);
 		}
-		System.out.println("Finished Calculating TERp");
+		if(DEBUG) System.out.println("Finished Calculating TERp");
 		long OutputStartTime = System.nanoTime();
 		if (this.write_to_disk)
 		{
-			if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+			if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 			{
 				System.out.println("Writing output to disk.");
 			}
+			logger.info("Writing output to disk.");
 			terout.output();
 			//terout.output_all();
 		}
@@ -588,16 +620,211 @@ public class TERplus implements Configurable
 		long OverallEndTime = System.nanoTime();
 		long OverallElapsedTime = OverallEndTime - OverallStartTime;
 		this.OverallElapsedSec += (double) OverallElapsedTime / 1.0E09;
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+		if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 		{
 			System.out.println(calc.get_info());
 			System.out.println(NormalizeText.get_info());
 			showTime();
 		}
-		System.out.printf("Total TER: %.2f (%.2f / %.2f)\n", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS);
+		
+		//System.out.printf("Total TER: %.2f (%.2f / %.2f)", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS);
+		logger.info(String.format("Total TER: %.2f (%.2f / %.2f)", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS));
 		
 		return terout;
 	}
+	
+	
+	public double[] compute_ter(TERoutput out)
+	{
+		long OverallStartTime = System.nanoTime();
+		long InitStartTime = System.nanoTime();
+		String ref_fn = params.para().get_string(TERpara.OPTIONS.REF);
+		String ref_scores_fn = params.para().get_string(TERpara.OPTIONS.REF_SCORES);
+		String[] hyp_fn = params.para().get_stringlist(TERpara.OPTIONS.HYP);
+		String[] hyp_scores_fn = params.para().get_stringlist(TERpara.OPTIONS.HYP_SCORES);
+		String reflen_fn = params.para().get_string(TERpara.OPTIONS.REFLEN);
+		String out_pfx = params.para().get_string(TERpara.OPTIONS.OUTPFX);
+		ArrayList<String> formats = new ArrayList<String>(Arrays.asList(params.para().get_stringlist(
+				TERpara.OPTIONS.FORMATS)));
+		boolean caseon = params.para().get_boolean(TERpara.OPTIONS.CASEON);
+		WordNet.setWordNetDB(params.para().get_string(TERpara.OPTIONS.WORDNET_DB_DIR));
+		NormalizeText.init(params);
+		
+		// 2. init variables
+		double TOTAL_EDITS = 0.0;
+		double TOTAL_WORDS = 0.0;
+		
+		//terinput_scores = new TERinputScores(hyp_fn, hyp_scores_fn, ref_fn, ref_scores_fn, reflen_fn, params.para().get_boolean(TERpara.OPTIONS.IGNORE_SETID));
+		terinput_scores = new TERinputScores(hyp_fn, hyp_scores_fn, ref_fn, ref_scores_fn, reflen_fn, params);
+		
+		// 3. verify input formats
+		if (!verifyFormats(terinput_scores.in_ref_format(), terinput_scores.in_hyp_format(), formats))
+		{
+			System.err.println("REF format : "+terinput_scores.in_ref_format()+" and HYP format : "+terinput_scores.in_hyp_format());
+			System.exit(1);
+		}
+		
+		// 4. init calculation variables
+		TERoutput terout = new TERoutput(out_pfx, formats, hyp_fn, ref_fn, reflen_fn, caseon, terinput_scores, params);
+		//System.out.println("Creating Segment Phrase Tables From DB");
+		String pt_db = params.para().get_string(TERpara.OPTIONS.PHRASE_DB);
+		if ((pt_db != null) && (!pt_db.equals("")))
+		{
+			this.phrasedb = new PhraseDB(pt_db);
+		} else
+		{
+			this.phrasedb = null;
+		}
+		this.calc = init_tercalc(terinput_scores);
+		
+		double[] ter_scores = new double[out.getIds().size()];
+		
+		//for each sentence
+		int npid = 0;
+		for (TERid pid : out.getIds())
+		{
+			if(npid % 100 == 0)
+			{
+				logger.info("Processing sentence #"+npid+" : "+pid);
+				//System.err.println("TERplus::run_cn : Processing sentence #"+npid+" : "+pid);
+			}
+			
+			TERalignmentCN al = (TERalignmentCN) (out.getResult(pid));
+			
+			if(al == null || al.cn == null)
+			{
+				logger.info("compute_ter : empty result for sentence "+pid+"... continuing !");
+				numScored++;
+				terout.add_result(pid.getPlainIdent(), calc.getFakeTERAlignmentCN());
+				ter_scores[npid] = 1.0; // 1.0 is max TER
+				npid++;
+				continue;
+			}
+			
+				
+			// 5. compute TER
+			long InitEndTime = System.nanoTime();
+			long InitElapsedTime = InitEndTime - InitStartTime;
+			this.InitElapsedSec += (double) InitElapsedTime / 1.0E09;
+			
+			// Prep as much as we can for this plain ID (useful if we have
+			// multiple systems or nbest lists)
+			List<String[]> refs = terinput_scores.getRefForHypTok(pid);
+			List<float[]> refs_scores = terinput_scores.getRefScoresForHypTok(pid);
+			
+			List<String[]> lens = terinput_scores.getLenForHypTok(pid);
+			//List<String> origrefs = terinput_scores.getRefForHyp(pid);
+			String[][] refs_ar = refs.toArray(new String[0][0]);
+			String[][] lens_ar = null;
+			if (lens != null)
+			{
+				lens_ar = lens.toArray(new String[0][0]);
+			}
+			calc.setRefLen(lens_ar);
+			boolean b = calc.init(pid);
+			if (b == false)
+			{
+				System.err.println("Unable to initialize phrase table to id: " + pid);
+				System.exit(-1);
+			}
+	
+			// we must have 1 ref and many hyps
+			if (refs.size() > 1)
+			{
+				System.err.println("WARNING compute_ter : Multiple ref detected ("+refs.size()+")... only using first one");
+				for(int n=0; n<refs.size(); n++)
+				{
+					System.err.println("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
+				}
+			}
+	
+			if ((refs.size() == 0) || ((refs.size() == 1) && (refs.get(0).length == 0)))
+			{
+				System.out.println("WARNING computer_ter : Blank or empty reference for segment: " + pid.id + " ... skipping !");
+				numScored++;
+				terout.add_result(pid.getPlainIdent(), calc.getFakeTERAlignmentCN());
+				ter_scores[npid] = 1.0; // 1.0 is max TER
+				npid++;
+				continue;
+			}
+			else if(DEBUG)
+			{
+				for(int i=0; i<refs.size(); i++)
+				{
+					System.err.print("REF[" + i + "] = ");
+					System.err.println(TERutilities.join(" ", refs.get(i)));
+					System.err.print("SCORES = ");
+					System.err.println(TERutilities.join(" ", refs_scores.get(i)));
+				}
+			}
+			
+			// OK we have all what we need ... let's compute terp !
+			long startTime = System.nanoTime();
+			TERalignmentCN align = calc.compute_ter(al.cn, refs_ar[0]);
+			
+			TOTAL_EDITS += align.numEdits;
+			TOTAL_WORDS += align.numWords;
+			long endTime = System.nanoTime();
+			long elapsedTime = endTime - startTime;
+			double eTsec = elapsedTime / 1.0E09;
+			if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+			{
+				System.out.printf("  Time: %.3f sec.  Score: %.2f (%.2f / %.2f)\n", eTsec, align.score(),
+						align.numEdits, align.numWords);
+			}
+			numScored++;
+			terout.add_result(pid.getPlainIdent(), align);
+			
+			
+			TERalignmentCN final_al = (TERalignmentCN) (terout.getResult(pid));
+			if(final_al == null)
+			{
+				logger.info("compute_ter : empty final result for sentence "+pid+"... continuing !");
+				ter_scores[npid] = 1.0; // 1.0 is max TER
+			}
+			else if (final_al instanceof TERalignmentCN)
+			{
+				ter_scores[npid] = final_al.score();
+				if(DEBUG)
+					logger.info("\tSystem "+pid+" - Sentence "+npid+" : "+ter_scores[npid]);
+			}
+			else
+			{
+				logger.info("run : not a confusion network ... aborting !");
+				System.exit(0);
+			}
+			npid++;
+		}
+		
+		if(DEBUG) System.err.println("Finished Calculating TERp");
+		long OutputStartTime = System.nanoTime();
+		if (this.write_to_disk)
+		{
+			if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+			{
+				System.out.println("Writing output to disk.");
+			}
+			terout.output_ter_scores();
+		}
+	
+		long OutputEndTime = System.nanoTime();
+		long OutputElapsedTime = OutputEndTime - OutputStartTime;
+		this.OutputElapsedSec += (double) OutputElapsedTime / 1.0E09;
+		long OverallEndTime = System.nanoTime();
+		long OverallElapsedTime = OverallEndTime - OverallStartTime;
+		this.OverallElapsedSec += (double) OverallElapsedTime / 1.0E09;
+		if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+		{
+			System.out.println(calc.get_info());
+			System.out.println(NormalizeText.get_info());
+			showTime();
+		}
+		//System.out.printf("Total TER: %.2f (%.2f / %.2f)\n", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS);
+		logger.info(String.format("End of compute_ter : Total TER: %.2f (%.2f / %.2f)", (TOTAL_EDITS / TOTAL_WORDS), TOTAL_EDITS, TOTAL_WORDS));
+		
+		return ter_scores;
+	}
+	
 
 	public void loadPTdb(PhraseTable pt, TERinput terinput, TERcalc calc)
 	{
@@ -610,18 +837,18 @@ public class TERplus implements Configurable
 			// Prep as much as we can for this plain ID (useful if we have
 			// multiple systems or nbest lists)
 			List<String[]> refs = terinput.getRefForHypTok(pid);
-			String[][] refs_ar = (String[][]) refs.toArray(new String[0][0]);
+			String[][] refs_ar = refs.toArray(new String[0][0]);
 			List<String[]> allTokHyps = terinput.getHypForPlainTok(pid);
 			if (allTokHyps != null)
 			{
-				String[][] allTokHyps_ar = (String[][]) allTokHyps.toArray(new String[0][0]);
+				String[][] allTokHyps_ar = allTokHyps.toArray(new String[0][0]);
 				pt.add_phrases(refs_ar, allTokHyps_ar, pid);
 			}
 		}
 		this.phrasedb.closeDB();
 		long InitPTEndTime = System.nanoTime();
 		long InitPTElapsedTime = InitPTEndTime - InitPTStartTime;
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.VERBOSE))
+		if (params.para().get_boolean(TERpara.OPTIONS.VERBOSE))
 			System.out.printf("  Time: %.3f sec\n", (double) InitPTElapsedTime / 1.0E09);
 		this.InitPTElapsedSec += (double) InitPTElapsedTime / 1.0E09;
 	}
@@ -629,33 +856,33 @@ public class TERplus implements Configurable
 	private TERcost terCostFactory()
 	{
 		TERcost costfunc = null;
-		if ((TERpara.para().get(TERpara.OPTIONS.WORD_CLASS_FNAME) == null)
-				|| (TERpara.para().get(TERpara.OPTIONS.WORD_CLASS_FNAME).equals("")))
+		if ((params.para().get(TERpara.OPTIONS.WORD_CLASS_FNAME) == null)
+				|| (params.para().get(TERpara.OPTIONS.WORD_CLASS_FNAME).equals("")))
 		{
-			if ((Boolean) TERpara.para().get(TERpara.OPTIONS.GENERALIZE_NUMBERS))
+			if ((Boolean) params.para().get(TERpara.OPTIONS.GENERALIZE_NUMBERS))
 			{
 				costfunc = new TERnumcost();
 			} else
 			{
 				costfunc = new TERcost();
 			}
-			costfunc._delete_cost = (Double) TERpara.para().get(TERpara.OPTIONS.DELETE_COST);
-			costfunc._insert_cost = (Double) TERpara.para().get(TERpara.OPTIONS.INSERT_COST);
-			costfunc._shift_cost = (Double) TERpara.para().get(TERpara.OPTIONS.SHIFT_COST);
-			costfunc._match_cost = (Double) TERpara.para().get(TERpara.OPTIONS.MATCH_COST);
-			costfunc._stem_cost = (Double) TERpara.para().get(TERpara.OPTIONS.STEM_COST);
-			costfunc._syn_cost = (Double) TERpara.para().get(TERpara.OPTIONS.SYN_COST);
-			costfunc._substitute_cost = (Double) TERpara.para().get(TERpara.OPTIONS.SUBSTITUTE_COST);
+			costfunc._delete_cost = (Double) params.para().get(TERpara.OPTIONS.DELETE_COST);
+			costfunc._insert_cost = (Double) params.para().get(TERpara.OPTIONS.INSERT_COST);
+			costfunc._shift_cost = (Double) params.para().get(TERpara.OPTIONS.SHIFT_COST);
+			costfunc._match_cost = (Double) params.para().get(TERpara.OPTIONS.MATCH_COST);
+			costfunc._stem_cost = (Double) params.para().get(TERpara.OPTIONS.STEM_COST);
+			costfunc._syn_cost = (Double) params.para().get(TERpara.OPTIONS.SYN_COST);
+			costfunc._substitute_cost = (Double) params.para().get(TERpara.OPTIONS.SUBSTITUTE_COST);
 		} else
 		{
-			costfunc = new TERWordClassCost((String) TERpara.para().get(TERpara.OPTIONS.WORD_CLASS_FNAME),
-					(Double) TERpara.para().get(TERpara.OPTIONS.SUBSTITUTE_COST), (Double) TERpara.para().get(
-							TERpara.OPTIONS.MATCH_COST), (Double) TERpara.para().get(TERpara.OPTIONS.INSERT_COST),
-					(Double) TERpara.para().get(TERpara.OPTIONS.DELETE_COST), (Double) TERpara.para().get(
-							TERpara.OPTIONS.SHIFT_COST), (Double) TERpara.para().get(TERpara.OPTIONS.STEM_COST),
-					(Double) TERpara.para().get(TERpara.OPTIONS.SYN_COST));
+			costfunc = new TERWordClassCost((String) params.para().get(TERpara.OPTIONS.WORD_CLASS_FNAME),
+					(Double) params.para().get(TERpara.OPTIONS.SUBSTITUTE_COST), (Double) params.para().get(
+							TERpara.OPTIONS.MATCH_COST), (Double) params.para().get(TERpara.OPTIONS.INSERT_COST),
+					(Double) params.para().get(TERpara.OPTIONS.DELETE_COST), (Double) params.para().get(
+							TERpara.OPTIONS.SHIFT_COST), (Double) params.para().get(TERpara.OPTIONS.STEM_COST),
+					(Double) params.para().get(TERpara.OPTIONS.SYN_COST));
 		}
-		String weight_file = (String) TERpara.para().get(TERpara.OPTIONS.WEIGHT_FILE);
+		String weight_file = (String) params.para().get(TERpara.OPTIONS.WEIGHT_FILE);
 		if ((weight_file != null) && (!weight_file.equals("")))
 		{
 			costfunc.load_weights(weight_file);
@@ -665,30 +892,30 @@ public class TERplus implements Configurable
 
 	private TERcalcCN terCalcFactory(TERinput terinput, TERcost costfunc)
 	{
-		TERcalcCN calc = new TERcalcCN(costfunc);
+		TERcalcCN calc = new TERcalcCN(costfunc, params);
 		boolean use_phrases = (this.phrasedb != null);
 		// set options to compute TER
-		calc.loadShiftStopWordList((String) TERpara.para().get(TERpara.OPTIONS.SHIFT_STOP_LIST));
-		calc.setBeamWidth((Integer) TERpara.para().get(TERpara.OPTIONS.BEAMWIDTH));
-		calc.setShiftDist((Integer) TERpara.para().get(TERpara.OPTIONS.SHIFTDIST));
-		calc.setShiftCon((String) TERpara.para().get(TERpara.OPTIONS.SHIFT_CONSTRAINT));
-		calc.setUseStemming((Boolean) TERpara.para().get(TERpara.OPTIONS.USE_PORTER));
-		calc.setUseSynonyms((Boolean) TERpara.para().get(TERpara.OPTIONS.USE_WORDNET));
+		calc.loadShiftStopWordList((String) params.para().get(TERpara.OPTIONS.SHIFT_STOP_LIST));
+		calc.setBeamWidth((Integer) params.para().get(TERpara.OPTIONS.BEAMWIDTH));
+		calc.setShiftDist((Integer) params.para().get(TERpara.OPTIONS.SHIFTDIST));
+		calc.setShiftCon((String) params.para().get(TERpara.OPTIONS.SHIFT_CONSTRAINT));
+		calc.setUseStemming((Boolean) params.para().get(TERpara.OPTIONS.USE_PORTER));
+		calc.setUseSynonyms((Boolean) params.para().get(TERpara.OPTIONS.USE_WORDNET));
 		calc.setUsePhrases(use_phrases);
 		// Load Phrase Table
 		PhraseTable phrases = null;
 		if (use_phrases)
 		{
 			phrases = new PhraseTable(this.phrasedb);
-			phrases.set_sum_dup_phrases(TERpara.para().get_boolean(TERpara.OPTIONS.SUM_DUP_PHRASES));
-			phrases.set_adjust_func(TERpara.para().get_string(TERpara.OPTIONS.ADJUST_PHRASETABLE_FUNC), TERpara.para()
-					.get_doublelist(TERpara.OPTIONS.ADJUST_PHRASETABLE_PARAMS), TERpara.para().get_double(
-					TERpara.OPTIONS.ADJUST_PHRASETABLE_MIN), TERpara.para().get_double(
-					TERpara.OPTIONS.ADJUST_PHRASETABLE_MAX), calc);
+			phrases.set_sum_dup_phrases(params.para().get_boolean(TERpara.OPTIONS.SUM_DUP_PHRASES));
+			phrases.set_adjust_func(params.para().get_string(TERpara.OPTIONS.ADJUST_PHRASETABLE_FUNC), params.para()
+					.get_doublelist(TERpara.OPTIONS.ADJUST_PHRASETABLE_PARAMS), params.para().get_double(
+							TERpara.OPTIONS.ADJUST_PHRASETABLE_MIN), params.para().get_double(
+									TERpara.OPTIONS.ADJUST_PHRASETABLE_MAX), calc);
 			loadPTdb(phrases, terinput, calc);
 		}
 		costfunc.setPhraseTable(phrases);
-		String weight_file = TERpara.para().get_string(TERpara.OPTIONS.WEIGHT_FILE);
+		String weight_file = params.para().get_string(TERpara.OPTIONS.WEIGHT_FILE);
 		if ((weight_file != null) && (!weight_file.equals("")))
 		{
 			costfunc.load_weights(weight_file);
@@ -741,7 +968,7 @@ public class TERplus implements Configurable
 				irefs[i] = results[i];
 		}
 		TERalignment bestresult = new TERalignment(results[bestref]);
-		if (TERpara.para().get_boolean(TERpara.OPTIONS.USE_AVE_LEN))
+		if (params.para().get_boolean(TERpara.OPTIONS.USE_AVE_LEN))
 			bestresult.numWords = tot_words / ((double) results.length);
 		return bestresult;
 	}
@@ -752,8 +979,10 @@ public class TERplus implements Configurable
 		TERalignmentCN result = calc.TERcn(hyps, hyps_scores, ref, ref_scores);
 		if ((result == null))
 		{
-			System.err.println("ERROR incremental_build_cn : Internal error in scoring in TERplus.  Aborting!");
-			System.exit(-1);
+			//System.err.println("ERROR incremental_build_cn : Internal error in scoring in TERplus.  Aborting!");
+			logger.info("ERROR incremental_build_cn : Internal error in scoring in TERplus.  Aborting!");
+			//System.exit(-1);
+			return null;
 		}
 		result.orig_hyps = new String[orighyps.size()];
 		for (int i = 0; i < result.hyps.size(); i++)
@@ -844,20 +1073,13 @@ public class TERplus implements Configurable
 		return name;
 	}
 
-	//@Override
+	@Override
 	public void newProperties(PropertySheet ps) throws PropertyException
 	{
 		logger = ps.getLogger();
 		//terpParams = ps.getString(PROP_TERP_PARAMS, PROP_TERP_PARAMS_DEFAULT);
 	}
 
-	//@Override
-	public void register(String name, Registry registry) throws PropertyException
-	{
-		this.name = name;
-		//registry.register(PROP_TERP_PARAMS, PropertyType.STRING);
-	}
-	
 	static String[] usage_ar =
 	{"Usage : ", "java -cp TERp.jar com.bbn.mt.terp.TERplus parameters.xml "};
 	public static void usage()
