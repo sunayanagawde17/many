@@ -1370,7 +1370,7 @@ public class TERcalc
 		//System.err.println("END MinEditDist - no CN");
 		return to_return;
 	}
-	private TERalignmentCN MinEditDistcn(Comparable<String>[] hyp, ArrayList<ArrayList<Comparable<String>>> cn, Comparable<String>[] ref)
+	/*private TERalignmentCN MinEditDistcn(Comparable<String>[] hyp, ArrayList<ArrayList<Comparable<String>>> cn, Comparable<String>[] ref)
 	{
 		//System.err.println("BEGIN MinEditDistcn - with CN");
 		double current_best = INF;
@@ -1621,7 +1621,7 @@ public class TERcalc
 		to_return.ref = ref;
 		//System.err.println("END MinEditDistcn - with CN");
 		return to_return;
-	}
+	}*/
 	private int contains(ArrayList<Comparable<String>> ref, Comparable<String> hyp)
 	{
 		if(params.para().get_boolean(TERpara.OPTIONS.CASEON))

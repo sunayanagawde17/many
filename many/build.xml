@@ -14,7 +14,6 @@
  		<format property="jarTimeStamp" pattern="yyMMdd" locale="fr" />  
  	</tstamp>  
  	<!-- <zip zipfile="MyZip${zipTimeStamp}.zip" /> -->
-	<property name="release" value="${basedir}/lib/${name}_${jarTimeStamp}.jar" />
 	
 	
 	<property name="je" value="${lib}/je-4.0.92.jar" />
@@ -26,14 +25,35 @@
 			<pathelement location="${wordnet}"/>
 			<pathelement location="${junit}"/>
 	</path>
+
+
+    <exec executable="svn" output="lib/svn.properties">
+        <arg value="info" />
+    </exec>
+    <property prefix="svn" file="lib/svn.properties"/>
+    <echo>Sandbox Revision: ${svn.Revision}</echo>
 	
+    <property name="release" value="${lib}/${name}_${svn.Revision}.jar" />
+
 	
-  <target name="main" depends="compile, jar" description="Main target">
+  <target name="main" depends="info, compile, jar" description="Main target">
     <echo>
-      Construction du fichier .jar.
+      Construction du fichier ${name}.jar ...
     </echo>
   </target>
 
+	<!-- Info -->
+	<target name="info" depends="init" description="Display configuration">
+		<echo message="******************** " />
+		<echo message="*        MANY      *" />
+		<echo message="******************** " />
+		<echo message="Author                   : Loïc BARRAULT" />
+		<echo message="Ant  version             : ${ant.version}" />
+		<echo message="Java version             : ${ant.java.version}" />
+		<echo message="Java home directory      : ${java.home}" />
+		<echo message="Java classpath           : ${java.class.path}" />
+
+	</target>
 	
 <!-- ===================================== -->
 <!--     Init                              -->
@@ -49,8 +69,7 @@
 <!-- ===================================== -->
 	<target name="compile" depends="init" >
 		<!-- <javac srcdir="${source}" destdir="${build}" target="1.5" source="1.5" nowarn="off" /> -->
-		<!-- <javac srcdir="${src}" destdir="${build}" nowarn="on" debug="off" optimize="on"> -->
-		<javac srcdir="${src}" destdir="${build}" nowarn="on" debug="on" optimize="on">
+		<javac srcdir="${src}" destdir="${build}" nowarn="off" debug="on" optimize="on">
 		  		<classpath refid="javac.classpath"/>
 		  		<compilerarg value="-Xlint"/>
 		  	</javac>
@@ -72,21 +91,29 @@
 			<fileset dir="${build}" />
 			<zipfileset src="${je}" />
 			<zipfileset src="${wordnet}" />
-			<!-- <zipfileset src="${terp}" />
-			<zipfileset src="${decoder}" /> -->
 		</jar>
 
 
 
-	    <copy tofile="${release}" file="${lib}/${name}.jar" />
+	<copy tofile="${release}" file="${lib}/${name}.jar" /> 
 	</target>
 
+<!-- ===================================== -->
+<!--     Encrypt                           -->
+<!-- ===================================== -->
+<!--	<target name="encrypt" depends="jar">
+			<crypto keyFile="key.ser"
+					inputFile="${dist}/${name}.jar"
+					outputFile="${dist}/${name}.secret.jar" />
+			<copy todir="${ftp}" file="${dist}/${name}secret.jar" />
+		</target> -->
 
 <!-- ===================================== -->
 <!--     Remove build directories          -->
 <!-- ===================================== -->
 	<target name="clean" >
 		<delete dir="${build}" />
+		<delete file="${lib}/${name}.jar" />
 	</target>
 
 </project>

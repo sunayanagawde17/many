@@ -46,7 +46,7 @@ public class InterpolatedLanguageModel implements LanguageModel {
 
     private static final double EPSILON = 0.001;
 
-    InterpolatedLanguageModel(LogMath logMath, List<LanguageModel> languageModels, float [] floats ) {
+    public InterpolatedLanguageModel(LogMath logMath, List<LanguageModel> languageModels, float [] floats ) {
         this.languageModels = languageModels;
         this.numberOfLanguageModels = languageModels.size();
 
@@ -64,7 +64,7 @@ public class InterpolatedLanguageModel implements LanguageModel {
         }
     }
 
-    InterpolatedLanguageModel() {
+    public InterpolatedLanguageModel() {
 
     }
 
@@ -120,7 +120,7 @@ public class InterpolatedLanguageModel implements LanguageModel {
     }
 
     @Override
-    public void deallocate() {
+    public void deallocate() throws IOException {
         allocated = false;
         for (LanguageModel model : languageModels) {
             model.deallocate();
@@ -167,7 +167,7 @@ public class InterpolatedLanguageModel implements LanguageModel {
      */
     @Override
     public float getSmear(WordSequence wordSequence) {
-        return 1.0f; // TODO not implememted
+        return 1.0f; // TODO not implemented
     }
 
     /* (non-Javadoc)

@@ -33,6 +33,7 @@ import edu.cmu.sphinx.util.props.Configurable;
 import edu.cmu.sphinx.util.props.ConfigurationManager;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
+import edu.cmu.sphinx.util.props.S4Double;
 import edu.cmu.sphinx.util.props.S4Integer;
 import edu.cmu.sphinx.util.props.S4String;
 
@@ -60,23 +61,44 @@ public class MANYterp implements Configurable
 
 	/** The property that defines the hypotheses scores filenames */
 	@S4String(defaultValue = "")
-	public final static String PROP_HYPS_SCORES_FILES = "hyps_scores";
+	public final static String PROP_HYPS_SCORES_FILES = "hyps-scores";
 
-	/** The property that defines the TERp costs */
+	/** The property that defines the TERp costs 
 	@S4String(defaultValue = "1.0 1.0 1.0 1.0 1.0 0.0 1.0")
 	public final static String PROP_COSTS = "costs";
-
+	*/
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_INS_COST = "insertion";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_DEL_COST = "deletion";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SUB_COST = "substitution";
+	
+	@S4Double(defaultValue = 0.0)
+	public final static String PROP_MATCH_COST = "match";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SHIFT_COST = "shift";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_STEM_COST = "stem";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SYN_COST = "synonym";
+	
 	/** The property that defines the system priors */
 	@S4String(defaultValue = "")
 	public final static String PROP_PRIORS = "priors";
 
-	/** The property that defines the wordnet database location */
+	/** The property that defines the Wordnet database location */
 	@S4String(defaultValue = "")
 	public final static String PROP_WORD_NET = "wordnet";
 
 	/** The property that defines the stop word list filename */
 	@S4String(defaultValue = "")
-	public final static String PROP_STOP_LIST = "shift_word_stop_list";
+	public final static String PROP_STOP_LIST = "shift-word-stop-list";
 
 	/** The property that defines the paraphrase-table filename */
 	@S4String(defaultValue = "")
@@ -90,12 +112,14 @@ public class MANYterp implements Configurable
 	@S4Integer(defaultValue = 0)
 	public final static String PROP_MULTITHREADED = "multithread";
 
-	private String outfile;  
+	private String outfile;
 	private String terpParamsFile;
 	private String reference;
 	private String hypotheses;
 	private String hypotheses_scores;
-	private String terp_costs;
+	
+	//private String terp_costs;
+	private float ins, del, sub, match, shift, stem, syn;
 	private String priors_str;
 	private String wordnet;
 	private String shift_word_stop_list;
@@ -106,8 +130,8 @@ public class MANYterp implements Configurable
 	
 	private String ref = null;
 	private String[] hyps = null, hyps_scores = null;
-	private String[] costs = null;
-	private double[] priors = null;
+	private float[] costs = null;
+	private float[] priors = null;
 
 	/**
 	 * Main method of this MTSyscomb tool.
@@ -146,7 +170,7 @@ public class MANYterp implements Configurable
 
 		if (compute == null)
 		{
-			System.err.println("Can't find MANY" + args[0]);
+			System.err.println("Can't find MANYterp" + args[0]);
 			return;
 		}
 		
@@ -160,14 +184,23 @@ public class MANYterp implements Configurable
 		ref = reference;
 		hyps = hypotheses.split("\\s+");
 		hyps_scores = hypotheses_scores.split("\\s+");
-		costs = terp_costs.split("\\s+");
+		//costs = terp_costs.split("\\s+");
+		costs = new float[7];
+		costs[0] = del;
+		costs[1] = stem;
+		costs[2] = syn;
+		costs[3] = ins;
+		costs[4] = sub;
+		costs[5] = match;
+		costs[6] = shift;
+		
 		String[] lst = priors_str.split("\\s+");
-		priors = new double[lst.length];
+		priors = new float[lst.length];
 		// System.err.println("priors : ");
 		for (int i = 0; i < lst.length; i++)
 		{
 			// System.err.print(" >"+lst[i]+"< donne ");
-			priors[i] = Double.parseDouble(lst[i]);
+			priors[i] = Float.parseFloat(lst[i]);
 			// System.err.println(" >"+priors[i]+"< ");
 		}
 	}
@@ -215,12 +248,13 @@ public class MANYterp implements Configurable
 
 			// 1.2 Generate terp.params file
 			String suffix = ".thread" + i;
-			generateParams(terpParamsFile + suffix, outfile + suffix, backbone, backbone_scores, i, lst, lst_sc,
-					costs, priors, hyps_idx);
+			TERutilities.generateParams(terpParamsFile + suffix, outfile + suffix, backbone, backbone_scores, i, lst, lst_sc, hyps_idx, 
+					costs, priors, wordnet, shift_word_stop_list, paraphrases);
 			logger.info("TERp params file generated ...");
 
-			//generateParams(terpParamsFile + ".refalign" + suffix, outfile + ".refalign" + suffix, ref, lst, lst_sc);
-			generateParams(terpParamsFile + ".refalign" + suffix, outfile + ".refalign" + suffix, ref, lst, lst_sc, costs);
+	
+			TERutilities.generateParams(terpParamsFile + ".refalign" + suffix,	outfile + ".refalign" + suffix, ref, lst, lst_sc, 
+					costs, wordnet, shift_word_stop_list, paraphrases);
 			logger.info("TERp params file for ref alignment prepared for later ...");
 
 			tasks.add(new TERtask(i, terpParamsFile + suffix, outfile + ".cn." + i));
@@ -329,7 +363,7 @@ public class MANYterp implements Configurable
 				}
 				// else { logger.info("we have an output ...");}
 				
-				// 2. Calculate TER between theref and CN
+				// 2. Calculate TER between the ref and CN
 				logger.info("run : launching TERp for ref eval with system " + i + " as backbone ...");
 				try
 				{
@@ -337,7 +371,9 @@ public class MANYterp implements Configurable
 				}
 				catch (Exception e)
 				{
+					System.err.println("ERROR : MANYterp::run : ");
 					e.printStackTrace();
+					System.exit(0);
 				}
 			}
 		}
@@ -443,8 +479,15 @@ public class MANYterp implements Configurable
 
 		// TERp
 		terpParamsFile = ps.getString(PROP_TERP_PARAMS_FILE);
-		terp_costs = ps.getString(PROP_COSTS);
-
+		//terp_costs = ps.getString(PROP_COSTS);
+		ins = ps.getFloat(PROP_INS_COST);
+		del = ps.getFloat(PROP_DEL_COST);
+		sub = ps.getFloat(PROP_SUB_COST);
+		match = ps.getFloat(PROP_MATCH_COST);
+		shift = ps.getFloat(PROP_SHIFT_COST);
+		stem = ps.getFloat(PROP_STEM_COST);
+		syn = ps.getFloat(PROP_SYN_COST);
+		
 		wordnet = ps.getString(PROP_WORD_NET);
 		shift_word_stop_list = ps.getString(PROP_STOP_LIST);
 		paraphrases = ps.getString(PROP_PARAPHRASES);
@@ -473,144 +516,12 @@ public class MANYterp implements Configurable
 	 */
 
 	static String[] usage_ar =
-	{"Usage : ", "java -Xmx8G -cp MANY.jar edu.lium.mt.ComputeTERcn parameters.xml "};
+	{"Usage : ", "java -Xmx8G -cp MANYterp.jar edu.lium.mt.MANYterp parameters.xml "};
 	public static void usage()
 	{
 		System.err.println(TERutilities.join("\n", usage_ar));
 	}
 
-	public void generateParams(String paramsFile, String output, String ref, String ref_scores, int ref_idx,
-			ArrayList<String> hyps, ArrayList<String> hyps_scores, String[] costs, double[] sysWeights, int[] hyps_idx)
-	{
-		StringBuilder sb = new StringBuilder();
-
-		sb.append("Reference File (filename)                : ").append(ref);
-		sb.append("\nReference Scores File (filename)         : ").append(ref_scores);
-		sb.append("\nHypothesis Files (list)                  : ").append(TERutilities.join(" ", hyps));
-		sb.append("\nHypothesis Scores Files (list)           : ").append(TERutilities.join(" ", hyps_scores));
-		sb.append("\nOutput Prefix (filename)                 : ").append(output);
-		sb.append("\nDefault Deletion Cost (float)            : ").append(costs[0]);
-		sb.append("\nDefault Stem Cost (float)                : ").append(costs[1]);
-		sb.append("\nDefault Synonym Cost (float)             : ").append(costs[2]);
-		sb.append("\nDefault Insertion Cost (float)           : ").append(costs[3]);
-		sb.append("\nDefault Substitution Cost (float)        : ").append(costs[4]);
-		sb.append("\nDefault Match Cost (float)               : ").append(costs[5]);
-		sb.append("\nDefault Shift Cost (float)               : ").append(costs[6]);
-
-		sb.append("\nOutput Formats (list)                    : ").append("cn param");
-		sb.append("\nCreate confusion Network (boolean)       : ").append("true");
-		sb.append("\nUse Porter Stemming (boolean)            : ").append("true");
-		sb.append("\nUse WordNet Synonymy (boolean)           : ").append("true");
-		sb.append("\nCase Sensitive (boolean)                 : ").append("true");
-		// sb.append("\nShift Constraint (string)                : ").append("exact");
-		sb.append("\nShift Constraint (string)                : ").append("relax");
-		sb.append("\nWordNet Database Directory (filename)    : ").append(wordnet);
-		sb.append("\nShift Stop Word List (string)            : ").append(shift_word_stop_list);
-		sb.append("\nPhrase Database (filename)               : ").append(paraphrases);
-
-		sb.append("\nReference Index (integer)                : ").append(ref_idx);
-		sb.append("\nHypotheses Indexes (integer list)        : ").append(TERutilities.join(" ", hyps_idx));
-		sb.append("\nSystems weights (double list)            : ").append(TERutilities.join(" ", sysWeights));
-
-		// PrintStream outWriter = null;
-		BufferedWriter outWriter = null;
-		if (paramsFile != null)
-		{
-			try
-			{
-				// outWriter = new PrintStream(paramsFile, "ISO8859_1");
-				// outWriter = new PrintStream(paramsFile, "UTF-8");
-				outWriter = new BufferedWriter(new FileWriter(paramsFile));
-				outWriter.write(sb.toString());
-				outWriter.close();
-			}
-			catch (IOException ioe)
-			{
-				System.err.println("I/O erreur durant creation output file " + String.valueOf(paramsFile) + " " + ioe);
-			}
-		}
-	}
-
-	public void generateParams(String paramsFile, String output, String ref, ArrayList<String> hyps,
-			ArrayList<String> hyps_scores, String[] costs)
-	{
-		StringBuilder sb = new StringBuilder();
-
-		sb.append("Reference File (filename)                : ").append(ref);
-		sb.append("\nHypothesis Files (list)                  : ").append(TERutilities.join(" ", hyps));
-		sb.append("\nHypothesis Scores Files (list)           : ").append(TERutilities.join(" ", hyps_scores));
-		sb.append("\nOutput Prefix (filename)                 : ").append(output);
-		sb.append("\nDefault Deletion Cost (float)            : ").append(costs[0]);
-		sb.append("\nDefault Stem Cost (float)                : ").append(costs[1]);
-		sb.append("\nDefault Synonym Cost (float)             : ").append(costs[2]);
-		sb.append("\nDefault Insertion Cost (float)           : ").append(costs[3]);
-		sb.append("\nDefault Substitution Cost (float)        : ").append(costs[4]);
-		sb.append("\nDefault Match Cost (float)               : ").append(costs[5]);
-		sb.append("\nDefault Shift Cost (float)               : ").append(costs[6]);
-		sb.append("\nUse Porter Stemming (boolean)            : ").append("true");
-		sb.append("\nUse WordNet Synonymy (boolean)           : ").append("true");
-		sb.append("\nCase Sensitive (boolean)                 : ").append("true");
-		// sb.append("\nShift Constraint (string)                : ").append("exact");
-		sb.append("\nShift Constraint (string)                : ").append("relax");
-		sb.append("\nWordNet Database Directory (filename)    : ").append(wordnet);
-		sb.append("\nShift Stop Word List (string)            : ").append(shift_word_stop_list);
-		sb.append("\nPhrase Database (filename)               : ").append(paraphrases);
-
-		BufferedWriter outWriter = null;
-		if (paramsFile != null)
-		{
-			try
-			{
-				outWriter = new BufferedWriter(new FileWriter(paramsFile));
-				outWriter.write(sb.toString());
-				outWriter.close();
-			}
-			catch (IOException ioe)
-			{
-				System.err.println("I/O erreur durant creation output file " + String.valueOf(paramsFile) + " " + ioe);
-			}
-		}
-	}
-
-	public void generateParams(String paramsFile, String output, String ref, ArrayList<String> hyps,
-			ArrayList<String> hyps_scores)
-	{
-		StringBuilder sb = new StringBuilder();
-
-		sb.append("Reference File (filename)                : ").append(ref);
-		sb.append("\nHypothesis Files (list)                  : ").append(TERutilities.join(" ", hyps));
-		sb.append("\nHypothesis Scores Files (list)           : ").append(TERutilities.join(" ", hyps_scores));
-		sb.append("\nOutput Prefix (filename)                 : ").append(output);
-		sb.append("\nDefault Deletion Cost (float)            : 1.0");
-		sb.append("\nDefault Stem Cost (float)                : 1.0");
-		sb.append("\nDefault Synonym Cost (float)             : 1.0");
-		sb.append("\nDefault Insertion Cost (float)           : 1.0");
-		sb.append("\nDefault Substitution Cost (float)        : 1.0");
-		sb.append("\nDefault Match Cost (float)               : 0.0");
-		sb.append("\nDefault Shift Cost (float)               : 1.0");
-		sb.append("\nUse Porter Stemming (boolean)            : ").append("true");
-		sb.append("\nUse WordNet Synonymy (boolean)           : ").append("true");
-		sb.append("\nCase Sensitive (boolean)                 : ").append("true");
-		// sb.append("\nShift Constraint (string)                : ").append("exact");
-		sb.append("\nShift Constraint (string)                : ").append("relax");
-		sb.append("\nWordNet Database Directory (filename)    : ").append(wordnet);
-		sb.append("\nShift Stop Word List (string)            : ").append(shift_word_stop_list);
-		sb.append("\nPhrase Database (filename)               : ").append(paraphrases);
-
-		BufferedWriter outWriter = null;
-		if (paramsFile != null)
-		{
-			try
-			{
-				outWriter = new BufferedWriter(new FileWriter(paramsFile));
-				outWriter.write(sb.toString());
-				outWriter.close();
-			}
-			catch (IOException ioe)
-			{
-				System.err.println("I/O erreur durant creation output file " + String.valueOf(paramsFile) + " " + ioe);
-			}
-		}
-	}
+	
 
 }

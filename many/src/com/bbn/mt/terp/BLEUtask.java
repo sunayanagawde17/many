@@ -1,4 +1,4 @@
-package com.bbn.mt.terp;
+	package com.bbn.mt.terp;
 
 import java.util.List;
 import java.util.Map;
@@ -6,7 +6,7 @@ import java.util.concurrent.Callable;
 import java.util.logging.Logger;
 import edu.lium.decoder.MANYcn;
 
-public class BLEUtask implements Callable<BLEUcn.BLEUcounts>
+public class BLEUtask implements Callable<BLEUcounts>
 {
 	private boolean DEBUG = false;
 	private int id = -1;
@@ -26,16 +26,16 @@ public class BLEUtask implements Callable<BLEUcn.BLEUcounts>
 	}
 
 	@Override
-	public BLEUcn.BLEUcounts call() throws Exception
+	public BLEUcounts call() throws Exception
 	{
 		logger = Logger.getLogger("BLEUThread " + id);
 		//System.err.println("Starting task " + id);
 		logger.info("Starting task " + id);
 		
-		int nbSentences = terpout.getResults().size();
-		double[] bleu_scores = new double[nbSentences];
+		//int nbSentences = terpout.getResults().size();
+		//double[] bleu_scores = new double[nbSentences];
 		
-		BLEUcn.BLEUcounts bleu_counts = new BLEUcn(-1).new BLEUcounts();
+		BLEUcounts bleu_counts = new BLEUcounts();
 		
 		int npid = 0;
 		//for (int j = 0; j < nbSentences; j++) // for each sentences
@@ -48,6 +48,12 @@ public class BLEUtask implements Callable<BLEUcn.BLEUcounts>
 			}
 			
 			TERalignmentCN al = (TERalignmentCN) (terpout.getResult(pid));
+			if(al == null)
+			{
+				logger.warning("No result for sentence #"+npid+" : "+pid+" ... skipping!");
+				continue;
+			}
+			
 			List<String[]> refs = all_refs_tok.get(pid);
 			
 			if (refs.size() > 1)
@@ -60,8 +66,8 @@ public class BLEUtask implements Callable<BLEUcn.BLEUcounts>
 	
 			if ((refs.size() == 0) || ((refs.size() == 1) && (refs.get(0).length == 0)))
 			{
-				System.out.println("WARNING BLEUtask::call : Blank or empty reference for segment: " + pid.id + " ... skipping !");
-				bleu_scores[npid] = 0.0; // 0.0 is min BLEU
+				System.out.println("WARNING BLEUtask::call : Blank or empty reference for segment: " + pid + " ... skipping !");
+				//bleu_scores[npid] = 0.0; // 0.0 is min BLEU
 				npid++;
 				continue;
 			}
@@ -74,7 +80,7 @@ public class BLEUtask implements Callable<BLEUcn.BLEUcounts>
 				}
 			}
 			
-			MANYcn cn = new MANYcn(al.cn, al.cn_scores);
+			MANYcn cn = new MANYcn(al.cn, al.cn_scores, null);
 			//logger.info("MANYcn created  : ");
 			//logger.info(cn.toCNString());
 			BLEUcn bleu = new BLEUcn(id, max_ngram);

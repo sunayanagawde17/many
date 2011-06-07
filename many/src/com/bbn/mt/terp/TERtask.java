@@ -23,7 +23,6 @@ public class TERtask implements Callable<TERoutput>
 	@Override
 	public TERoutput call() throws Exception
 	{
-		System.err.println("Starting task "+id);
 		terp = new TERplus();
 		terp.logger = Logger.getLogger("Thread"+id);
 		terp.setTerpParams(params);

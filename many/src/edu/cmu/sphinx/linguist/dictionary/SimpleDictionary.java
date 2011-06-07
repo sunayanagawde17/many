@@ -77,7 +77,7 @@ public class SimpleDictionary implements Dictionary
 	//private URL fillerDictionaryFile;
 	private boolean allocated = false;
 	//private boolean compound = false;
-	private Map<String, java.util.List<Word>> choix;
+	//private Map<String, java.util.List<Word>> choix;
 	private Map<String, Word> wordDictionary;
 	private Map<String, Word> fillerDictionary;
 	private Timer loadTimer;
@@ -118,15 +118,15 @@ public class SimpleDictionary implements Dictionary
 			// "wordDictionaryFile" and "fillerDictionaryFile" should
 			// contain the full path to the Dictionaries.
 			logger.info("Loading dictionary from: " + wordDictionaryFile);
-			choix = new HashMap<String, List<Word>>();
+			//choix = new HashMap<String, List<Word>>();
 			wordDictionary = loadDictionary(wordDictionaryFile.openStream(),
 					false);
 			loadTimer.stop();
-			allocated = true;
+			
 			if (logger.isLoggable(Level.FINEST))
 				dump();// this can help
-			logger.info("end loading dicts : " + wordDictionary.size() + " ch:"
-					+ choix.size());
+			logger.info("end loading dictionary : " + wordDictionary.size());
+					//"+ " ch:"		+ choix.size());
 			allocated = true;
 		}
 	}
@@ -143,7 +143,7 @@ public class SimpleDictionary implements Dictionary
 			wordDictionary = null;
 			loadTimer = null;
 			allocated = false;
-			choix = null;
+			//choix = null;
 		}
 	}
 	
@@ -175,6 +175,7 @@ public class SimpleDictionary implements Dictionary
 			//String base = word.toLowerCase(); // paul
 			Word ici = new Word(word, null, false);
 			logger.finer("lire:" + word);
+			//System.err.println("lire:" + word);
 			dictionary.put(word, ici);
 		}
 		inputStream.close();
@@ -222,11 +223,10 @@ public class SimpleDictionary implements Dictionary
 	 */
 	public Word getWord(String text)
 	{
-		// text = text.toLowerCase();
 		Word word = lookupWord(text);
 		if (word == null)
 		{
-			//logger.info(text + " is not in dico ... returning <unk>");
+			logger.fine(text + " is not in dico ... returning <unk>");
 			return getUnknownWord();
 		}
 		return word;
@@ -235,16 +235,16 @@ public class SimpleDictionary implements Dictionary
 	 * Lookups up a word
 	 * 
 	 * @param spelling
-	 *            the spellling of the word
+	 *            the spelling of the word
 	 * 
 	 * @return the word or null
 	 */
 	private Word lookupWord(String spelling)
 	{
-		Word word = (Word) wordDictionary.get(spelling);
+		Word word = wordDictionary.get(spelling);
 		/*if (word == null)
 		{
-			logger.info("rate :" + spelling);
+			System.err.println("rate :" + spelling);
 		}*/
 		return word;
 	}
@@ -308,13 +308,13 @@ public class SimpleDictionary implements Dictionary
 		{
 			String text = i.next();
 			Word word = getWord(text);
-			List<Word> ch = choix.get(text.toLowerCase());
+			//List<Word> ch = choix.get(text.toLowerCase());
 			result += (word + " ");
-			if (ch != null)
+			/*if (ch != null)
 				for (Word w : ch)
 				{
 					result += ("   " + w.toString() + " ");
-				}
+				}*/
 			result += "\n";
 		}
 		return result;
@@ -340,13 +340,13 @@ public class SimpleDictionary implements Dictionary
 			String result = "";
 			String text = i.next();
 			Word word = getWord(text);
-			List<Word> pronunciations = choix.get(text.toLowerCase());
+			//List<Word> pronunciations = choix.get(text.toLowerCase());
 			result += (word);
-			result += " ";
+			//result += " ";
 			
-			if (pronunciations != null)
+			/*if (pronunciations != null)
 				for (Word w : pronunciations)
-					result += ("   " + w.toString() + " ");
+					result += ("   " + w.toString() + " ");*/
 			System.out.println(result);
 		}
 	}

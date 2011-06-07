@@ -547,8 +547,8 @@ public class TERplus implements Configurable
 				logger.info("WARNING run_cn : Blank or empty reference for segment: " + pid.id + " ... skipping !");
 				numScored++;
 				
-				terout.add_result(pid.getPlainIdent(), calc.getFakeTERAlignmentCN());
-				//terout.add_result(pid.getPlainIdent(), null);
+				//terout.add_result(pid.getPlainIdent(), calc.getFakeTERAlignmentCN());
+				terout.add_result(pid.getPlainIdent(), null);
 				continue;
 			}
 			else if(DEBUG)
@@ -561,7 +561,7 @@ public class TERplus implements Configurable
 					System.err.println(TERutilities.join(" ", refs_scores.get(i)));
 				}
 			}
-			if (hyps.size() == 0)
+			if (hyps.size() == 0 || ((hyps.size() == 1) && (hyps.get(0).length == 0)))
 			{
 				logger.info("WARNING run_cn : no hypothesis for segment: " + pid.id);
 			}

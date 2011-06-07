@@ -11,6 +11,8 @@
  */
 package edu.lium.decoder;
 
+import java.util.ArrayList;
+
 public class Link
 {
 	Node endNode;
@@ -23,23 +25,25 @@ public class Link
 	float posterior; // variable set by the forward-backward algorithm
 	int wordId;
 	int id;
-	int sysid;
+	ArrayList<Integer> sysids; // the set of system which proposed the word on this link
 	
-	public Link(Node from, Node target, float prob, float post, int word, int sysid, int i)
+	public Link(Node from, Node target, float prob, float post, int word, ArrayList<Integer> sysids, int i)
 	{
 		this.startNode = from;
 		this.endNode = target;
 		this.probability = prob;
 		this.posterior = post;
 		this.wordId = word;
+		if(sysids == null)
+			this.sysids = new ArrayList<Integer>();
+		else
+			this.sysids = new ArrayList<Integer>(sysids);
 		this.id = i;
-		this.sysid = sysid;
 		from.nextLinks.add(this);
 		target.backLinks.add(this);
-		
 	}
 	
-	public Link(Node from, Node target, float prob, float post, int word, int i)
+	/*public Link(Node from, Node target, float prob, float post, int word, int i)
 	{
 		this(from, target, prob, prob, word, -1, i);
 	}
@@ -47,11 +51,11 @@ public class Link
 	public Link(Node from, Node target, float prob, int word, int i)
 	{
 		this(from, target, prob, prob, word, i);
-	}
+	}*/
     
 	public Link(Link l)
 	{
-		this(l.startNode, l.endNode, l.probability, l.posterior, l.wordId, l.id);
+		this(l.startNode, l.endNode, l.probability, l.posterior, l.wordId, l.sysids, l.id);
 	}
 	
 	@Override
@@ -88,6 +92,12 @@ public class Link
 			System.err.println("*** orig.wordId="+wordId+" vs new.wordId"+l.wordId+"  [BAD]");
 		}
 		
+		if(sysids.get(0) != l.sysids.get(0))
+		{
+			error = true;
+			System.err.println("*** orig.sysId="+sysids.get(0)+" vs new.sysId"+l.sysids.get(0)+"  [BAD]");
+		}
+		
 		if(id != l.id)
 		{
 			error = true;
@@ -100,6 +110,18 @@ public class Link
 			error = true;
 		
 		return !error;
+	}
+	
+	public void addSysIDs(ArrayList<Integer> ids)
+	{
+		for (Integer i : ids)
+		{
+			if(!sysids.contains(i))
+			{
+				sysids.add(i);
+			}
+		}
+		
 	}
 	
 	

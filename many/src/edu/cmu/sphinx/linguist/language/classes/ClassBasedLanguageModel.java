@@ -99,7 +99,7 @@ public class ClassBasedLanguageModel implements LanguageModel {
     * @see edu.cmu.sphinx.linguist.language.ngram.LanguageModel#deallocate()
     */
     @Override
-    public void deallocate() {
+    public void deallocate() throws IOException {
         allocated = false;
         classLM.deallocate();
         classMap.deallocate();
@@ -154,7 +154,7 @@ public class ClassBasedLanguageModel implements LanguageModel {
      */
     @Override
     public float getSmear(WordSequence wordSequence) {
-        return 1.0f; // TODO not implemented
+        return 0.0f; // TODO not implemented
     }
 
     /* (non-Javadoc)

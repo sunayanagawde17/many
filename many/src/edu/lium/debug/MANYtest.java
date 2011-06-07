@@ -3,6 +3,7 @@ package edu.lium.debug;
 import java.util.ArrayList;
 import junit.framework.TestCase;
 import com.bbn.mt.terp.BLEUcn;
+import com.bbn.mt.terp.BLEUcounts;
 import com.bbn.mt.terp.TERutilities;
 import edu.lium.decoder.MANYcn;
 import edu.lium.utilities.MANYutilities;
@@ -104,7 +105,7 @@ public class MANYtest extends TestCase
 		String file = "output.many.cn.";
 		
 		String ref_file = "ref";
-		int nb_refs = 1; //nombre de ref pour chaque phrase
+		//int nb_refs = 1; //nombre de ref pour chaque phrase
 		
 		//System.err.println("Loading ref file : "+ref_file);
 		ArrayList<String[]> refs = MANYutilities.loadRefs(ref_file, 1);
@@ -124,7 +125,7 @@ public class MANYtest extends TestCase
 			ArrayList<MANYcn> cns = MANYcn.fullCNs2CNs(full_cns);
 			//System.err.println("Converted full_cns to cns successfully !!");
 			
-			BLEUcn.BLEUcounts bleu_counts = new BLEUcn(-1).new BLEUcounts();
+			BLEUcounts bleu_counts = new BLEUcounts();
 			
 			for(int j=0; j<cns.size(); j++)
 			//for(int j=0; j<1; j++)
@@ -137,7 +138,7 @@ public class MANYtest extends TestCase
 				bleu_counts.closest_ref_length += bleu.bc.closest_ref_length;
 				//System.err.printf("len ratio=%.3f, hyp_len=%d, ref_len=%d\n", (float)bleu.translation_length / (float)bleu.closest_ref_length, bleu.translation_length, bleu.closest_ref_length);
 				
-				for(int n=0; n<BLEUcn.max_ngram_size; n++)
+				for(int n=0; n<BLEUcounts.max_ngram_size; n++)
 				{
 					bleu_counts.ngram_counts[n] += bleu.bc.ngram_counts[n];
 					bleu_counts.ngram_counts_ref[n] += bleu.bc.ngram_counts_ref[n];

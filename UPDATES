@@ -1,5 +1,15 @@
 
 
+7 Jun 2011
+
+ A. MANY is now integrated into EMS
+    1. Easier to launch several runs of experiment: just modify the config file
+    2. See http://www.statmt.org/moses/?n=FactoredTraining.EMS
+ B. Tuning now uses MERT to optimize decoder weights (the decoder is now a weighted log-linear combination of all features functions)
+ C. Loading a local language model is now possible (no lm server needed)  
+ D. All scripts are now written in perl (more homogeneous)
+  
+
 27 Apr 2010
 
 MANY updates : 
@@ -29,9 +39,6 @@ this actually call MANYbleu and calculate the sum of an approximation of BLEU be
                 - Optimize_MANYdecode_template.sh : 
 this actually call MANYdecode; It loads the CN obtained with a parameters optimized at the first step and tune the decoder parameters. 
  
- D. Other updates
-    1. 
-
 *****
 
 16 Feb 2010 : First commit.

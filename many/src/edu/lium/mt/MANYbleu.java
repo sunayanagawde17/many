@@ -28,7 +28,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.logging.Logger;
-import com.bbn.mt.terp.BLEUcn;  
+import com.bbn.mt.terp.BLEUcounts;
 import com.bbn.mt.terp.BLEUtask;
 import com.bbn.mt.terp.NormalizeText;
 import com.bbn.mt.terp.TERid;
@@ -36,11 +36,11 @@ import com.bbn.mt.terp.TERinput;
 import com.bbn.mt.terp.TERoutput;
 import com.bbn.mt.terp.TERtask;
 import com.bbn.mt.terp.TERutilities;
-import com.bbn.mt.terp.BLEUcn.BLEUcounts;
 import edu.cmu.sphinx.util.props.Configurable;
 import edu.cmu.sphinx.util.props.ConfigurationManager;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
+import edu.cmu.sphinx.util.props.S4Double;
 import edu.cmu.sphinx.util.props.S4Integer;
 import edu.cmu.sphinx.util.props.S4String;
 
@@ -68,11 +68,31 @@ public class MANYbleu implements Configurable
 
 	/** The property that defines the hypotheses scores filenames */
 	@S4String(defaultValue = "")
-	public final static String PROP_HYPS_SCORES_FILES = "hyps_scores";
+	public final static String PROP_HYPS_SCORES_FILES = "hyps-scores";
 
-	/** The property that defines the TERp costs */
+	/** The property that defines the TERp costs
 	@S4String(defaultValue = "1.0 1.0 1.0 1.0 1.0 0.0 1.0")
-	public final static String PROP_COSTS = "costs";
+	public final static String PROP_COSTS = "costs";*/
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_INS_COST = "insertion";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_DEL_COST = "deletion";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SUB_COST = "substitution";
+	
+	@S4Double(defaultValue = 0.0)
+	public final static String PROP_MATCH_COST = "match";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SHIFT_COST = "shift";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_STEM_COST = "stem";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SYN_COST = "synonym";
 
 	/** The property that defines the system priors */
 	@S4String(defaultValue = "")
@@ -84,15 +104,13 @@ public class MANYbleu implements Configurable
 
 	/** The property that defines the stop word list filename */
 	@S4String(defaultValue = "")
-	public final static String PROP_STOP_LIST = "shift_word_stop_list";
+	public final static String PROP_STOP_LIST = "shift-word-stop-list";
 
 	/** The property that defines the paraphrase-table filename */
 	@S4String(defaultValue = "")
 	public final static String PROP_PARAPHRASES = "paraphrases";
 
-	/**
-	 * The property that defines the evaluation method (can be MIN, MEAN or MAX)
-	 */
+	/** The property that defines the evaluation method (can be MIN, MEAN or MAX) */
 	@S4String(defaultValue = "MEAN")
 	public final static String PROP_METHOD = "method";
 
@@ -105,7 +123,8 @@ public class MANYbleu implements Configurable
 	private String reference;
 	private String hypotheses;
 	private String hypotheses_scores;
-	private String terp_costs;
+	//private String terp_costs;
+	private float ins, del, sub, match, shift, stem, syn;
 	private String priors_str;
 	private String wordnet;
 	private String shift_word_stop_list;
@@ -115,7 +134,7 @@ public class MANYbleu implements Configurable
 	private boolean allocated;
 
 	private String[] hyps = null, hyps_scores = null;
-	private String[] costs = null;
+	private float[] costs = null;
 	private float[] priors = null;
 	private Map<TERid, List<String>> refs;
 	private Map<TERid, List<String[]>> refs_tok;
@@ -128,7 +147,7 @@ public class MANYbleu implements Configurable
 	 */
 	public static void main(String[] args)
 	{
-		if (args.length < 1)
+		if (args.length < 1 || ((args.length == 2) && (!"--debug".equals(args[1]))) || args.length > 1)
 		{
 			MANYbleu.usage();
 			System.exit(0);
@@ -157,7 +176,7 @@ public class MANYbleu implements Configurable
 
 		if (compute == null)
 		{
-			System.err.println("Can't find MANY : " + url+ "("+args[0]+")");
+			System.err.println("Can't find MANYbleu : " + url+ "("+args[0]+")");
 			return;
 		}
 	
@@ -170,7 +189,16 @@ public class MANYbleu implements Configurable
 		allocated = true;
 		hyps = hypotheses.split("\\s+");
 		hyps_scores = hypotheses_scores.split("\\s+");
-		costs = terp_costs.split("\\s+");
+		//costs = terp_costs.split("\\s+");
+		costs = new float[7];
+		costs[0] = del;
+		costs[1] = stem;
+		costs[2] = syn;
+		costs[3] = ins;
+		costs[4] = sub;
+		costs[5] = match;
+		costs[6] = shift;
+		
 		String[] lst = priors_str.split("\\s+");
 		priors = new float[lst.length];
 		// System.err.println("priors : ");
@@ -203,7 +231,6 @@ public class MANYbleu implements Configurable
 
 	public void run()
 	{
-		//int nbSentences = 0;
 		BLEUcounts[] bleu_scores = new BLEUcounts[hyps.length];
 		ArrayList<String> lst = null;
 		ArrayList<String> lst_sc = null;
@@ -241,8 +268,8 @@ public class MANYbleu implements Configurable
 
 			// 1.2 Generate terp.params file
 			String suffix = ".thread" + i;
-			TERutilities.generateParams(terpParamsFile + suffix, outfile + suffix, backbone, backbone_scores, i,
-					lst, lst_sc, costs, priors, hyps_idx, wordnet, shift_word_stop_list, paraphrases);
+			TERutilities.generateParams(terpParamsFile + suffix, outfile + suffix, backbone, backbone_scores, i, lst, lst_sc, hyps_idx,
+					costs, priors, wordnet, shift_word_stop_list, paraphrases);
 			logger.info("TERp params file generated ...");
 
 			tasks.add(new TERtask(i, terpParamsFile + suffix, outfile + ".cn." + i));
@@ -294,7 +321,7 @@ public class MANYbleu implements Configurable
 			}
 			// launch threads
 			ExecutorService ref_executor = Executors.newFixedThreadPool(nb_threads);
-			List<Future<BLEUcn.BLEUcounts>> results_ref = null;
+			List<Future<BLEUcounts>> results_ref = null;
 			try
 			{
 				results_ref = ref_executor.invokeAll(bleutasks);
@@ -327,7 +354,7 @@ public class MANYbleu implements Configurable
 				}
 			}
 		}
-		else
+		else // no multithreading
 		{
 			for (int i = 0; i < hyps.length; ++i) // foreach backbone
 			{
@@ -380,35 +407,54 @@ public class MANYbleu implements Configurable
 		}
 
 		logger.info("run : Calculating final score for each sentence (according to 'method' parameter) ...");
-		double bleuScore = 0.0;
-		BLEUcn.BLEUcounts bleu_counts = new BLEUcn(-1).new BLEUcounts();
-		
+		double bleuPrecScore = 0.0, bleuRecallScore = 0.0;
+		////BLEUcn.BLEUcounts bleu_counts = new BLEUcn(-1).new BLEUcounts();
+		double bpSum = 0, brSum = 0, bp, br;
 		for (int i = 0; i < bleu_scores.length; i++) // for each backbone
 		{
 			if (DEBUG)
 				System.err.println("Backbone #" + i);
 
-			//sum up everything
-			bleu_counts.closest_ref_length += bleu_scores[i].closest_ref_length;  
-			bleu_counts.translation_length += bleu_scores[i].translation_length;
+			/*//////sum up everything
+			////bleu_counts.closest_ref_length += bleu_scores[i].closest_ref_length;  
+			////bleu_counts.translation_length += bleu_scores[i].translation_length;
 			
-			for(int b=0; b<BLEUcn.max_ngram_size; b++)
+			////for(int b=0; b<BLEUcn.max_ngram_size; b++)
+			////{
+				////bleu_counts.ngram_counts[b] += bleu_scores[i].ngram_counts[b];
+				////bleu_counts.ngram_counts_ref[b] += bleu_scores[i].ngram_counts_ref[b];
+				////bleu_counts.ngram_counts_clip[b] += bleu_scores[i].ngram_counts_clip[b];
+			////}*/
+			bp = bleu_scores[i].computeBLEU();
+			br = bleu_scores[i].computeRecall();
+			
+			if(method.equals("MAX"))
+			{	
+				if(bleuPrecScore < bp) bleuPrecScore = bp;
+				if(bleuRecallScore < br) bleuRecallScore = br;
+				
+			}
+			else if(method.equals("MEAN") || method.equals("SUM"))
 			{
-				bleu_counts.ngram_counts[b] += bleu_scores[i].ngram_counts[b];
-				bleu_counts.ngram_counts_ref[b] += bleu_scores[i].ngram_counts_ref[b];
-				bleu_counts.ngram_counts_clip[b] += bleu_scores[i].ngram_counts_clip[b];
-			}	
+				bpSum += bleu_scores[i].computeBLEU();
+				brSum += bleu_scores[i].computeRecall();
+			}
 		}
 		
-		bleuScore = bleu_counts.computeBLEU();
-		//bleuScore = bleu_counts.computeRecall();
+		if(method.equals("MEAN"))
+		{
+			bleuPrecScore = bpSum / bleu_scores.length;
+			bleuRecallScore = brSum / bleu_scores.length;
+		}
+		////bleuPrecScore = bleu_counts.computeBLEU();
+		////bleuRecallScore = bleu_counts.computeRecall();
 		
 		if (DEBUG)
-			System.err.println(" score : " + bleuScore);
+			System.err.println(" score : " + bleuPrecScore);
 		
 		try
 		{
-			bw.write(""+bleuScore);
+			bw.write(""+bleuPrecScore+" "+bleuRecallScore);
 			//bw.newLine();
 			bw.close();
 		}
@@ -443,8 +489,15 @@ public class MANYbleu implements Configurable
 
 		// TERp
 		terpParamsFile = ps.getString(PROP_TERP_PARAMS_FILE);
-		terp_costs = ps.getString(PROP_COSTS);
-
+		//terp_costs = ps.getString(PROP_COSTS);
+		ins = ps.getFloat(PROP_INS_COST);
+		del = ps.getFloat(PROP_DEL_COST);
+		sub = ps.getFloat(PROP_SUB_COST);
+		match = ps.getFloat(PROP_MATCH_COST);
+		shift = ps.getFloat(PROP_SHIFT_COST);
+		stem = ps.getFloat(PROP_STEM_COST);
+		syn = ps.getFloat(PROP_SYN_COST);
+		
 		wordnet = ps.getString(PROP_WORD_NET);
 		shift_word_stop_list = ps.getString(PROP_STOP_LIST);
 		paraphrases = ps.getString(PROP_PARAPHRASES);
@@ -456,7 +509,7 @@ public class MANYbleu implements Configurable
 	}
 
 	static String[] usage_ar =
-	{"Usage : ", "java -Xmx8G -cp MANY.jar edu.lium.mt.ComputeTERcn parameters.xml "};
+	{"Usage : ", "java -Xmx10G -cp MANY.jar edu.lium.mt.MANYbleu parameters.xml "};
 	public static void usage()
 	{
 		System.err.println(TERutilities.join("\n", usage_ar));
