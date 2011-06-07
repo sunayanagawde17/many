@@ -1,0 +1,369 @@
+################################################
+### CONFIGURATION FILE FOR A SYSCOMB EXPERIMENT ###
+################################################
+
+[GENERAL]
+
+### directory in which experiment is run
+#
+base-dir = /Users/barrault/Documents/sandbox/test_MANY
+working-dir = $base-dir
+
+# specification of the language pair
+input-extension = fr
+output-extension = en
+pair-extension = fr-en
+
+#  some EXPERIMENT specific settings 
+# data
+# directory containing the data
+datadir = $base-dir/data
+# basename of tuning data: the soft will look for $datadir/$pair-extension.$corpustune
+corpustune = dev
+# basename of test data: the soft will look for $datadir/$pair-extension.$corpustest
+corpustest = test
+# directory containing the language model
+lmdir = $base-dir/lm
+# language model to use (tuning and test)
+decodlm = $lmdir/btecd123.dev6.iw09b.4g.kn-int.DMP32.cmu.arpa.gz.DMP32
+# vocabulary relative to the LM
+vocab = $lmdir/btecd123.dev6.iw09b.4g.kn-int.vocab
+# LM order
+lm-order = 4
+# memory required for tuning/decoding (mainly LM size)
+mem = 1g
+
+# default config file name
+config-default-name = many.config.xml
+config = $base-dir/many.config.xml
+
+### directories that contain tools and data
+# 
+# moses
+moses-src-dir = /Users/barrault/Documents/TOOLS/mosesdecoder/trunk
+# moses scripts
+moses-script-dir = $moses-src-dir/scripts
+# many
+many-src-dir = /Users/barrault/Documents/sandbox/MANY
+# many scripts
+many-script-dir = $many-src-dir/scripts
+# many build to use
+many = /lium/buster1/barrault/RELEASE/bin/MANY_507.jar
+# srilm
+srilm-dir = /Users/barrault/Documents/TOOLS/srilm/bin/macosx
+
+# useful tools and data
+wordnet = /Users/barrault/Documents/TOOLS/WordNet-3.0/dict
+paraphrases = /Users/barrault/Documents/TOOLS/terp/terp.v1/data/phrases.db
+shift-word-stop-list = /Users/barrault/Documents/TOOLS/terp/terp.v1/data/shift_word_stop_list.txt
+
+# use flexible matching (relax) or not (exact)
+#shift-constraint = relax
+shift-constraint = exact
+
+# some general settings
+# which base for logarithm to use
+log-base = 2.718
+# maximum number of tokens considered during decoding
+max-nb-tokens = 10000
+# maximum number of thread to use when combinaing in multithreaded
+max-threads = 8
+# which port to use for the lm-server. Set to -1 to use local LM 
+lmserver-port = -1
+#lmserver-port = 1234
+
+
+### basic tools
+#
+# many decoder
+decoder = $many-src-dir/scripts/MANY.pl
+
+# tokenizers - comment out if all your data is already tokenized
+#input-tokenizer = "$moses-script-dir/tokenizer/tokenizer.perl -a -l $input-extension"
+#output-tokenizer = "$moses-script-dir/tokenizer/tokenizer.perl -a -l $output-extension"
+
+# truecasers - comment out if you do not use the truecaser
+#input-truecaser = $moses-script-dir/recaser/truecase.perl
+#output-truecaser = $moses-script-dir/recaser/truecase.perl
+#detruecaser = $moses-script-dir/recaser/detruecase.perl
+
+### generic parallelizer for cluster and multi-core machines
+# you may specify a script that allows the parallel execution
+# parallizable steps (see meta file). you also need specify 
+# the number of jobs (cluster) or cores (multicore)
+#
+#generic-parallelizer = $moses-script-dir/ems/support/generic-parallelizer.perl
+#generic-parallelizer = $moses-script-dir/ems/support/generic-multicore-parallelizer.perl
+
+### cluster settings (if run on a cluster machine)
+# number of jobs to be submitted in parallel
+#
+#jobs = 10
+
+# arguments to qsub when scheduling a job
+#qsub-settings = ""
+
+# project for priviledges and usage accounting 
+#qsub-project = iccs_smt
+
+# memory and time 
+#qsub-memory = 4
+#qsub-hours = 48
+
+### multi-core settings
+# when the generic parallelizer is used, the number of cores
+# specified here 
+cores = 8
+
+#################################################################
+# PARALLEL CORPUS PREPARATION: 
+# create a tokenized, sentence-aligned corpus, ready for training
+
+#[CORPUS]
+
+### long sentences are filtered out, since they slow down GIZA++ 
+# and are a less reliable source of data. set here the maximum
+# length of a sentence
+#
+#max-sentence-length = 80
+
+#[CORPUS:syscomb]
+
+### command to run to get raw corpus files
+#
+# get-corpus-script = 
+
+### raw corpus files (untokenized, but sentence aligned)
+# 
+#raw-stem = $syscomb-data/nc-5k
+
+### tokenized corpus files (may contain long sentences)
+#
+#tokenized-stem =
+
+### if sentence filtering should be skipped,
+# point to the clean training data
+#
+#clean-stem = 
+
+### if corpus preparation should be skipped,
+# point to the prepared training data
+#
+#lowercased-stem =  
+
+#################################################################
+# LANGUAGE MODEL TRAINING
+
+[LM]
+
+### tool to be used for language model training
+# for instance: ngram-count (SRILM), train-lm-on-disk.perl (Edinburgh) 
+# 
+lm-training = $srilm-dir/ngram-count
+settings = "-interpolate -kndiscount -unk"
+order = 5
+
+### tool to be used for training randomized language model from scratch
+# (more commonly, a SRILM is trained)
+#
+#rlm-training = "$moses-src-dir/randlm/bin/buildlm -falsepos 8 -values 8"
+
+### script to use for binary table format for irstlm
+# (default: no binarization)
+#
+#lm-binarizer = $moses-src-dir/irstlm/bin/compile-lm
+
+### script to create quantized language model format (irstlm)
+# (default: no quantization)
+# 
+#lm-quantizer = $moses-src-dir/irstlm/bin/quantize-lm
+
+### script to use for converting into randomized table format
+# (default: no randomization)
+#
+#lm-randomizer = "$moses-src-dir/randlm/bin/buildlm -falsepos 8 -values 8"
+
+### each language model to be used has its own section here
+
+[LM:syscomb]
+
+### command to run to get raw corpus files
+#
+#get-corpus-script = ""
+
+### raw corpus (untokenized)
+#
+#raw-corpus = $toy-data/nc-5k.$output-extension
+
+### tokenized corpus files (may contain long sentences)
+#
+#tokenized-corpus = 
+
+### if corpus preparation should be skipped, 
+# point to the prepared language model
+#
+lm = $decodlm
+
+#################################################################
+# INTERPOLATING LANGUAGE MODELS
+
+[INTERPOLATED-LM]
+
+# if multiple language models are used, these may be combined
+# by optimizing perplexity on a tuning set
+# see, for instance [Koehn and Schwenk, IJCNLP 2008]
+
+### script to interpolate language models
+# if commented out, no interpolation is performed
+#
+# script = $moses-script-dir/ems/support/interpolate-lm.perl
+
+### tuning set
+# you may use the same set that is used for mert tuning (reference set)
+#
+#tuning-sgm =
+#raw-tuning =
+#tokenized-tuning = 
+#factored-tuning = 
+#lowercased-tuning = 
+#split-tuning = 
+
+### script to use for binary table format for irstlm
+# (default: no binarization)
+#
+#lm-binarizer = $moses-src-dir/irstlm/bin/compile-lm
+
+### script to create quantized language model format (irstlm)
+# (default: no quantization)
+# 
+#lm-quantizer = $moses-src-dir/irstlm/bin/quantize-lm
+
+### script to use for converting into randomized table format
+# (default: no randomization)
+#
+#lm-randomizer = "$moses-src-dir/randlm/bin/buildlm -falsepos 8 -values 8"
+
+#################################################################
+# TRANSLATION MODEL TRAINING
+
+#####################################################
+### TUNING: finding good weights for model components
+
+[TUNING]
+
+### instead of tuning with this setting, old weights may be recycled
+# specify here an old configuration file with matching weights
+#
+#weight-config = $syscomb-data/weight.ini
+
+### tuning script to be used
+#
+tuning-align-script = $many-script-dir/Optimize_MANYbleu.pl
+tuning-align-dir = condor_manybleu
+tuning-align:qsub-settings = "-q trad -V -l mem=$mem -l cput=1000:00:00" 
+
+tuning-decoder-script = $many-script-dir/mert-manydecode.pl
+decoder = $many-script-dir/MANYdecode.pl
+tuning-settings = "-mertdir $moses-src-dir/mert"
+tuning-decoder-dir = mert_manydecode
+#tuning-decoder-flags = "--working-dir . --lm $decodlm --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens" 
+
+tuning-decoder:qsub-settings = "-q trad -V -l nodes=1:ppn=2 -l mem=$mem -l cput=1000:00:00" 
+tuning-decoder:nb-mert-runs = "1"
+
+### specify the corpus used for tuning 
+# it should contain 1000s of sentences
+#
+#input-sgm = 
+#raw-input = 
+#tokenized-input = 
+#factorized-input = 
+tokenized-input = $datadir/$corpustune
+
+# 
+#reference-sgm = 
+#raw-reference = 
+#tokenized-reference = 
+#factorized-reference = 
+tokenized-reference = $datadir/ref.dev.en 
+
+
+### size of n-best list used (typically 100)
+#
+nbest = 300
+
+### ranges for weights for random initialization
+# if not specified, the tuning script will use generic ranges
+# it is not clear, if this matters
+#
+# lambda = 
+
+### additional flags for the decoder
+#
+decoder-settings = "--many $many --working-dir . --lm $decodlm --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens --lm-server-port $lmserver-port"
+
+### if tuning should be skipped, specify this here
+# and also point to a configuration file that contains
+# pointers to all relevant model files
+#
+#config = 
+
+######################################################################
+## EVALUATION: translating a test set using the tuned system and score it
+
+[EVALUATION]
+
+
+### additional decoder settings
+# switches for the MANY decoder
+#
+decoder-settings = "--many $many --working-dir . --lm $decodlm --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens --lm-server-port $lmserver-port" 
+
+### specify size of n-best list, if produced
+#
+#nbest = 100
+
+### multiple reference translations
+#
+#multiref = no
+
+### prepare system output for scoring 
+# this may include detokenization and wrapping output in sgm 
+# (needed for nist-bleu, ter, meteor)
+#
+#detokenizer = "$moses-script-dir/tokenizer/detokenizer.perl -l $output-extension"
+#recaser = $moses-script-dir/recaser/recase.perl
+#wrapping-script = "$moses-script-dir/ems/support/wrap-xml.perl $output-extension"
+# output-sgm = 
+
+score-rb = $many-script-dir/score
+
+
+[EVALUATION:toy]
+
+### input data
+#
+# input-sgm = 
+# raw-input = 
+# tokenized-input = 
+# factorized-input =
+tokenized-input = $datadir/$corpustest
+
+### reference data
+#
+# reference-sgm = $syscomb-data/test-ref.$output-extension.sgm
+# raw-reference =
+tokenized-reference = $datadir/ref.test.en 
+
+### wrapping frame
+# for nist-bleu and other scoring scripts, the output needs to be wrapped 
+# in sgm markup (typically like the input sgm)
+#
+#wrapping-frame = $input-sgm
+##########################################
+### REPORTING: summarize evaluation scores
+
+[REPORTING]
+
+### currently no parameters for reporting section
+

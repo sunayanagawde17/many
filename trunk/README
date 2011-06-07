@@ -25,48 +25,33 @@ INSTALL
 
 To compile this software, a config file 'build.xml' for ant is provided.
 Just run 'ant' (or 'ant -f build.xml') in the 'many' directory.
-The library 'MANY.jar' will be available in the 'lib' directory.
-
-  - Copying scripts : 
-The scripts provided are the following : MANY.sh, add_id.sh and genSphinx4Config.pl.
-User must ensure that the last two scripts are accessible to MANY.sh
+The library 'MANY.jar' and 'MANY_svn-revision-number' will be available in the 'lib' directory.
 
 
 USE
+  - Try the 'test' experiment which is provided in the test/ directory.
+  - Prepare experiment : Several variables have to be set in order to run an experiment with MANY into EMS. They are all in the EMS config file.
 
-  - Prepare experiment : Several variables have to be set in order to run an experiment with MANY. They are all in MANY.sh
-  
-########### VARIABLES DEFINITION
-# Tools
-bin_dir=$HOME/bin 				: where to find the tools
-add_id=$bin_dir/add_id.sh			: path to the script for adding IDs to hypotheses.
-gen_sphinx_config=$bin_dir/genSphinxConfig.pl	: path to the script for generating Sphinx Config file.
-many=$bin_dir/MANY.jar				: path to the jar file containing the main program
+ 1. base-dir
+ 2. working-dir: where all the differents steps will be stored (steps, tuning, evaluation)
+ 3. lmdir, decodlm, lm-order and vocab: this setup the language model for TERp. Also let lmserver-port to -1 to use local lm, change it to use lm server.  
+ 4. moses-src-dir: to have access to mert 
+ 5. many-src-dir: where many is installed
+ 6. many: which version of MANY to use 
+ 7. shift-constraint, wordnet, paraphrases, shift-word-stop-list: constraint and resources for TERp 
 
-# Files
-many_config="many.config.xml"		: name of the config file for MANY
-terp_params="terp.params"		: name of the config file for TERp (even if included in MANY, I did not changed the format)
-vocab="lm.vocab"			: the file containing the vocabulary of the LM (typically 1 word per line)
-output="output.many"			: the output file
-current_dir=`pwd`
-working_dir="syscomb"			: the directory where the combination will be done
-hypotheses=("out1" "out2" "out3")	: the list of 1-best hypotheses files
-priors=(0.4000 0.4000 0.2000)		: the prior probabilities used in the lattice (they are associated with the corresponding hypotheses file)
+  - Also, the 'score' scripts (inside scripts directory) must be modified in order to target the NIST score.rb scoring script.
 
-nb_sys=${#hypotheses[@]}
+ To run experiments : use the following command : 
+ MANY_INSTALL_DIR/ems/experiment.perl --config config-file --no-graph --exec
 
-lmserverhost=TO_SET				: the server hosting the lm-server (with SRILM). This server must be launch as following : ngram -lm <LM_file> -server-port 1324 -unk
-lmserverport=TO_SET			: the port to connect to.
-
-fudge=0.2				: the fudge used in the decoder. WARNING : THIS VALUE IS MULTIPLIED BY 10 IN THE SOFT !
-null=0.3				: the null penalty applied when crossing a null-arc
-length=0.5				: the length penalty. WARNING : THIS VALUE IS MULTIPLIED BY 10 IN THE SOFT !
-#costs=(del stem syn ins sub match shift)
-costs=(1.0 1.0 1.0 1.0 1.0 0.0 1.0)	: the TERp costs : deletion stem synonym insertion substitution match shift 
-clean=1					: set to 1 for cleaning working directory
+ To continue a previous experiment run : 
+ MANY_INSTALL_DIR/ems/experiment.perl --config config-file --no-graph --exec --continue run_number
 
 
-  - Launch experiment : just run MANY.sh !
+
+
+ WARNING : if you try to use experiment.perl without --exec, then several errors will appear because some steps need some files created in a previous step (but they are created only when running those previous steps)
 
 
 

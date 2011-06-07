@@ -29,10 +29,6 @@ import edu.cmu.sphinx.util.props.S4String;
 
 public interface LanguageModel extends Configurable {
 
-    /** The property specifying the format of the language model. */
-    @S4String(defaultValue = "arpa")
-    public final static String PROP_FORMAT = "format";
-
     /** The property specifying the location of the language model. */
     @S4String(defaultValue = ".")
     public final static String PROP_LOCATION = "location";
@@ -63,8 +59,9 @@ public interface LanguageModel extends Configurable {
     public void allocate() throws IOException;
 
 
-    /** Deallocate resources allocated to this language model */
-    public void deallocate();
+    /** Deallocate resources allocated to this language model 
+     * @throws IOException */
+    public void deallocate() throws IOException;
 
 
     /** Called before a recognition */
@@ -76,7 +73,8 @@ public interface LanguageModel extends Configurable {
 
 
     /**
-     * Gets the n-gram probability of the word sequence represented by the word list
+     * Gets the n-gram probability of the word sequence represented 
+     * by the word list
      *
      * @param wordSequence the wordSequence
      * @return the probability of the word sequence in LogMath log base
@@ -85,8 +83,9 @@ public interface LanguageModel extends Configurable {
 
 
     /**
-     * Gets the smear term for the given wordSequence
-     *
+     * Gets the smear term for the given wordSequence. Used in {@link LexTreeLinguist}.
+     * See {@link LexTreeLinguist#PROP_WANT_UNIGRAM_SMEAR} for details.
+     * 
      * @param wordSequence the word sequence
      * @return the smear term associated with this word sequence
      */

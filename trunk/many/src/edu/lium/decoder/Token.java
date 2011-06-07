@@ -21,16 +21,42 @@ public class Token implements Comparable<Token>
 	WordSequence history;
 	WordSequence lmhistory;
 	
+	float lm_score;
+	int nb_words;
+	int nb_nulls;
+	int[] word_by_sys;
+	
 	public Token(){}
 	
-	public Token(float score, Token pred, Node node, WordSequence history, WordSequence lmhistory)
+	/*public Token(float score, Token pred, Node node, WordSequence history, WordSequence lmhistory, float lm_score, int nb_words, int nb_nulls, int[] word_by_sys)
 	{
 		this.score = score;
 		this.pred = pred;
 		this.node = node;
 		this.history = history;
 		this.lmhistory = lmhistory;
+		
+		this.lm_score = lm_score;
+		this.nb_words = nb_words;
+		this.nb_nulls = nb_nulls;
+		this.word_by_sys = word_by_sys;
+	}*/
+	
+	public Token(Token pred, Node node, WordSequence history, WordSequence lmhistory, float lm_score, int nb_words, int nb_nulls, int[] word_by_sys)
+	{
+		this.pred = pred;
+		this.node = node;
+		this.history = history;
+		this.lmhistory = lmhistory;
+		
+		this.lm_score = lm_score;
+		this.nb_words = nb_words;
+		this.nb_nulls = nb_nulls;
+		this.word_by_sys = word_by_sys;
+		
 	}
+	
+	
 	
 	public Node getNode() { return node;}
 	public float getScore() { return score;}

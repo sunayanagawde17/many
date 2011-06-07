@@ -35,9 +35,11 @@ import edu.cmu.sphinx.util.props.ConfigurationManager;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
 import edu.cmu.sphinx.util.props.S4Component;
+import edu.cmu.sphinx.util.props.S4Double;
 import edu.cmu.sphinx.util.props.S4Integer;
 import edu.cmu.sphinx.util.props.S4String;
 import edu.lium.decoder.Graph;
+import edu.lium.decoder.MANYcn;
 import edu.lium.decoder.TokenPassDecoder;
 
 public class MANY implements Configurable
@@ -68,15 +70,40 @@ public class MANY implements Configurable
 
 	/** The property that defines the hypotheses scores filenames */
 	@S4String(defaultValue = "")
-	public final static String PROP_HYPS_SCORES_FILES = "hyps_scores";
+	public final static String PROP_HYPS_SCORES_FILES = "hyps-scores";
 
-	/** The property that defines the TERp costs */
+	/** The property that defines the TERp costs 
 	@S4String(defaultValue = "1.0 1.0 1.0 1.0 1.0 0.0 1.0")
 	public final static String PROP_COSTS = "costs";
+	*/
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_INS_COST = "insertion";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_DEL_COST = "deletion";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SUB_COST = "substitution";
+	
+	@S4Double(defaultValue = 0.0)
+	public final static String PROP_MATCH_COST = "match";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SHIFT_COST = "shift";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_STEM_COST = "stem";
+	
+	@S4Double(defaultValue = 1.0)
+	public final static String PROP_SYN_COST = "synonym";
 
 	/** The property that defines the system priors */
 	@S4String(defaultValue = "")
 	public final static String PROP_PRIORS = "priors";
+
+	/** The property that defines the shift constraint*/
+	@S4String(defaultValue = "")
+	public final static String PROP_SHIFT_CONSTRAINT = "shift-constraint";
 
 	/** The property that defines the wordnet database location */
 	@S4String(defaultValue = "")
@@ -84,7 +111,7 @@ public class MANY implements Configurable
 
 	/** The property that defines the stop word list filename */
 	@S4String(defaultValue = "")
-	public final static String PROP_STOP_LIST = "shift_word_stop_list";
+	public final static String PROP_STOP_LIST = "shift-word-stop-list";
 
 	/** The property that defines the paraphrase-table filename */
 	@S4String(defaultValue = "")
@@ -102,8 +129,11 @@ public class MANY implements Configurable
 	private String terpParamsFile;
 	private String hypotheses;
 	private String hypotheses_scores;
-	private String terp_costs;
+	//private String terp_costs;
+	private float ins, del, sub, match, shift, stem, syn;
 	private String priors_str;
+	private boolean mustReWeight = false;
+	private String shift_constraint;
 	private String wordnet;
 	private String shift_word_stop_list;
 	private String paraphrases;
@@ -111,8 +141,10 @@ public class MANY implements Configurable
 	private boolean allocated;
 
 	private String[] hyps = null, hyps_scores = null;
-	private String[] costs = null;
+	private float[] costs = null;
 	private float[] priors = null;
+
+    public boolean DEBUG = false;
 
 	/**
 	 * Main method of this MTSyscomb tool.
@@ -122,11 +154,12 @@ public class MANY implements Configurable
 	 */
 	public static void main(String[] args)
 	{
-		if (args.length < 1)
+		if (args.length < 1 || (args.length == 2 && ("--debug".equals(args[1])==false)) || args.length > 2)
 		{
 			MANY.usage();
 			System.exit(0);
 		}
+
 
 		ConfigurationManager cm;
 		MANY syscomb;
@@ -136,6 +169,7 @@ public class MANY implements Configurable
 			URL url = new File(args[0]).toURI().toURL();
 			cm = new ConfigurationManager(url);
 			syscomb = (MANY) cm.lookup("MANY");
+            if(args.length == 2) syscomb.DEBUG = true;
 		}
 		catch (IOException ioe)
 		{
@@ -164,9 +198,20 @@ public class MANY implements Configurable
 		if(!allocated)
 		{
 			allocated = true;
+            System.err.println("hypos = "+hypotheses);
 			hyps = hypotheses.split("\\s+");
 			hyps_scores = hypotheses_scores.split("\\s+");
-			costs = terp_costs.split("\\s+");
+			
+			//costs = terp_costs.split("\\s+");
+			costs = new float[7];
+			costs[0] = del;
+			costs[1] = stem;
+			costs[2] = syn;
+			costs[3] = ins;
+			costs[4] = sub;
+			costs[5] = match;
+			costs[6] = shift;
+			
 			String[] lst = priors_str.split("\\s+");
 			priors = new float[lst.length];
 			// System.err.println("priors : ");
@@ -182,7 +227,8 @@ public class MANY implements Configurable
 	private void deallocate()
 	{
 		allocated = false;
-		hyps = hyps_scores = costs = null;
+		hyps = hyps_scores = null;
+		costs = null;
 		priors = null;
 		decoder.deallocate();
 	}
@@ -218,9 +264,8 @@ public class MANY implements Configurable
 			backbone = hyps[i];  
 			backbone_scores = hyps_scores[i];
 
-			logger.info("run : " + backbone + " (" + backbone_scores + ") is the reference ....");
-			logger.info("run : " + TERutilities.join(" ", lst) + " (" + TERutilities.join(" ", lst_sc)
-					+ ") are the hypotheses ....");
+			logger.info("run : " + backbone + " is the reference ....");
+			logger.info("run : " + TERutilities.join(" ", lst) + " are the hypotheses ....");
 
 			hyps_idx = new int[lst.size()];
 			for (int idx = 0, pos = 0; idx < hyps.length; idx++)
@@ -231,8 +276,8 @@ public class MANY implements Configurable
 
 			// 1.2 Generate terp.params file
 			String suffix = ".thread" + i;
-			generateParams(terpParamsFile + suffix, outfile + suffix, backbone, backbone_scores, i, lst, lst_sc,
-					costs, priors, hyps_idx);
+			TERutilities.generateParams(terpParamsFile + suffix, outfile + suffix, backbone, backbone_scores, i, lst, lst_sc, hyps_idx,
+					costs, priors, shift_constraint, wordnet, shift_word_stop_list, paraphrases);
 			logger.info("TERp params file generated ...");
 
 			tasks.add(new TERtask(i, terpParamsFile + suffix, outfile + ".cn." + i));
@@ -292,7 +337,6 @@ public class MANY implements Configurable
 					e.printStackTrace();
 				}
 				
-				
 				if (output == null)
 				{
 					logger.info("output is null ... exiting !");
@@ -332,25 +376,35 @@ public class MANY implements Configurable
 		
 		nbSentences = outputs.get(0).getResults().size();
 
-		ArrayList<ArrayList<ArrayList<Comparable<String>>>> aligns = new ArrayList<ArrayList<ArrayList<Comparable<String>>>>();
-		ArrayList<ArrayList<ArrayList<Float>>> aligns_scores = new ArrayList<ArrayList<ArrayList<Float>>>();
-
+		ArrayList<ArrayList<MANYcn>> all_cns = new ArrayList<ArrayList<MANYcn>>();
 		for (int i = 0; i < nbSentences; i++) // foreach sentences
 		{
-			aligns.clear();
-			aligns_scores.clear();
+			all_cns.add(new ArrayList<MANYcn>());
+			
 			// build a lattice with all the results
+			ArrayList<MANYcn> cns = new ArrayList<MANYcn>();
 			for (int j = 0; j < outputs.size(); j++)
 			{
 				TERalignment al = outputs.get(j).getResults().get(i);
 				if (al == null)
 				{
-					logger.info("combine : empty result for system " + j + "... continuing !");
+					logger.info("combine : empty result for system " + j + "... continuing!");
+                    all_cns.get(i).add(null);
 				}
 				else if (al instanceof TERalignmentCN)
 				{
-					aligns.add(((TERalignmentCN) al).cn);
-					aligns_scores.add(((TERalignmentCN) al).cn_scores);
+					MANYcn cn = new MANYcn(((TERalignmentCN) al).full_cn, ((TERalignmentCN) al).full_cn_scores, ((TERalignmentCN) al).full_cn_sys);
+					
+					all_cns.get(i).add(cn);
+					//if we have to re-weight, then do it !
+					if(mustReWeight)
+					{
+						MANYcn.changeSysWeights(all_cns.get(i), priors);
+						if(DEBUG) MANYcn.outputFullCNs(all_cns.get(i),"output.fullcn.reweight."+i);
+						
+						cns = MANYcn.fullCNs2CNs(all_cns.get(i));
+						if(DEBUG) MANYcn.outputCNs(cns,"output.cn.reweight."+i);
+					}
 				}
 				else
 				{
@@ -358,10 +412,10 @@ public class MANY implements Configurable
 					System.exit(0);
 				}
 			}
-
-			if (aligns.isEmpty())
+			
+			if (all_cns.get(i).isEmpty())
 			{
-				logger.info("combine : no result for sentence " + i + "... continuing !");
+				logger.info("combine : no result for sentence " + i + "... skipping!");
 				try
 				{
 					bw.newLine();
@@ -373,16 +427,16 @@ public class MANY implements Configurable
 				}
 				continue;
 			}
+			
+            if(i%100==0) { logger.info("combine : decoding graph for sentence "+i); }
 
-			logger.info("combine : decoding graph for sentence "+i);
-			Graph g = new Graph(aligns, aligns_scores, priors);
-			// g.printHTK("graph.htk_"+i+".txt");
+			Graph g = new Graph(cns, priors);
+			if(DEBUG) g.printHTK("graph.htk_"+i+".txt");
 
 			// Then we can decode this graph ...
-			// logger.info("combine : decoding graph ...");
 			try
 			{
-				decoder.decode(g, bw);
+				decoder.decode(i, g, bw);
 			}
 			catch (IOException ioe)
 			{
@@ -421,14 +475,27 @@ public class MANY implements Configurable
 		// decode
 		decoder = (TokenPassDecoder) ps.getComponent(PROP_DECODER);
 		priors_str = ps.getString(PROP_PRIORS);
+		if(priors_str.equals("") == false)
+			mustReWeight = true;
 
 		// TERp
 		terpParamsFile = ps.getString(PROP_TERP_PARAMS_FILE);
-		terp_costs = ps.getString(PROP_COSTS);
-		wordnet = ps.getString(PROP_WORD_NET);
-		shift_word_stop_list = ps.getString(PROP_STOP_LIST);
-		paraphrases = ps.getString(PROP_PARAPHRASES);
+		//terp_costs = ps.getString(PROP_COSTS);
+		ins = ps.getFloat(PROP_INS_COST);
+		del = ps.getFloat(PROP_DEL_COST);
+		sub = ps.getFloat(PROP_SUB_COST);
+		match = ps.getFloat(PROP_MATCH_COST);
+		shift = ps.getFloat(PROP_SHIFT_COST);
+		stem = ps.getFloat(PROP_STEM_COST);
+		syn = ps.getFloat(PROP_SYN_COST);
 		
+		shift_constraint = ps.getString(PROP_SHIFT_CONSTRAINT);
+		if("relax".equals(shift_constraint.toLowerCase()))
+		{
+			wordnet = ps.getString(PROP_WORD_NET);
+			shift_word_stop_list = ps.getString(PROP_STOP_LIST);
+			paraphrases = ps.getString(PROP_PARAPHRASES);
+		}	
 		//Others
 		nb_threads = ps.getInt(PROP_MULTITHREADED);
 	}
@@ -439,57 +506,4 @@ public class MANY implements Configurable
 	{
 		System.err.println(TERutilities.join("\n", usage_ar));
 	}
-
-	public void generateParams(String paramsFile, String output, String ref, String ref_scores, int ref_idx,
-			ArrayList<String> hyps, ArrayList<String> hyps_scores, String[] costs, float[] sysWeights, int[] hyps_idx)
-	{
-		StringBuilder sb = new StringBuilder();
-
-		sb.append("Reference File (filename)                : ").append(ref);
-		sb.append("\nReference Scores File (filename)         : ").append(ref_scores);
-		sb.append("\nHypothesis Files (list)                  : ").append(TERutilities.join(" ", hyps));
-		sb.append("\nHypothesis Scores Files (list)           : ").append(TERutilities.join(" ", hyps_scores));
-		sb.append("\nOutput Prefix (filename)                 : ").append(output);
-		sb.append("\nDefault Deletion Cost (float)            : ").append(costs[0]);
-		sb.append("\nDefault Stem Cost (float)                : ").append(costs[1]);
-		sb.append("\nDefault Synonym Cost (float)             : ").append(costs[2]);
-		sb.append("\nDefault Insertion Cost (float)           : ").append(costs[3]);
-		sb.append("\nDefault Substitution Cost (float)        : ").append(costs[4]);
-		sb.append("\nDefault Match Cost (float)               : ").append(costs[5]);
-		sb.append("\nDefault Shift Cost (float)               : ").append(costs[6]);
-
-		sb.append("\nOutput Formats (list)                    : ").append("cn param");
-		sb.append("\nCreate confusion Network (boolean)       : ").append("true");
-		sb.append("\nUse Porter Stemming (boolean)            : ").append("true");
-		sb.append("\nUse WordNet Synonymy (boolean)           : ").append("true");
-		sb.append("\nCase Sensitive (boolean)                 : ").append("true");
-		// sb.append("\nShift Constraint (string)                : ").append("exact");
-		sb.append("\nShift Constraint (string)                : ").append("relax");
-		sb.append("\nWordNet Database Directory (filename)    : ").append(wordnet);
-		sb.append("\nShift Stop Word List (string)            : ").append(shift_word_stop_list);
-		sb.append("\nPhrase Database (filename)               : ").append(paraphrases);
-
-		sb.append("\nReference Index (integer)                : ").append(ref_idx);
-		sb.append("\nHypotheses Indexes (integer list)        : ").append(TERutilities.join(" ", hyps_idx));
-		sb.append("\nSystems weights (double list)            : ").append(TERutilities.join(" ", sysWeights));
-
-		// PrintStream outWriter = null;
-		BufferedWriter outWriter = null;
-		if (paramsFile != null)
-		{
-			try
-			{
-				// outWriter = new PrintStream(paramsFile, "ISO8859_1");
-				// outWriter = new PrintStream(paramsFile, "UTF-8");
-				outWriter = new BufferedWriter(new FileWriter(paramsFile));
-				outWriter.write(sb.toString());
-				outWriter.close();
-			}
-			catch (IOException ioe)
-			{
-				System.err.println("I/O erreur durant creation output file " + String.valueOf(paramsFile) + " " + ioe);
-			}
-		}
-	}
-
 }

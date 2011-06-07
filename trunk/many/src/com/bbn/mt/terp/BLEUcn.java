@@ -15,7 +15,6 @@ import edu.lium.decoder.Node;
 
 public class BLEUcn
 {
-	public static int max_ngram_size = 4;
 	private boolean DEBUG = false;
 	private Logger logger = null;
 	// private LogMath logMath = null;
@@ -40,13 +39,19 @@ public class BLEUcn
 	public BLEUcn(int id, int max_ngram_size)
 	{
 		this(id);
-		if (max_ngram_size != BLEUcn.max_ngram_size)
+		if (max_ngram_size != BLEUcounts.max_ngram_size)
 		{
-			BLEUcn.max_ngram_size = max_ngram_size;
+			BLEUcounts.max_ngram_size = max_ngram_size;
 			bc = new BLEUcounts();
 		}
 	}
 
+	/**
+	 * 
+	 * @param cn
+	 * @param refs
+	 *            : : all the references provided
+	 */
 	public void calc(MANYcn cn, String[] refs)
 	{
 		bc.translation_length = cn.getSize();
@@ -54,6 +59,20 @@ public class BLEUcn
 		for (int i = 0; i < refs.length; i++)
 			refs_list.add(refs[i].split("\\s+"));
 
+		calc(cn, refs_list);
+	}
+
+	/**
+	 * 
+	 * @param cn
+	 * @param ref
+	 *            : the only one ref provided
+	 */
+	public void calc(MANYcn cn, String ref)
+	{
+		bc.translation_length = cn.getSize();
+		List<String[]> refs_list = new ArrayList<String[]>(1);
+		refs_list.add(ref.split("\\s+"));
 		calc(cn, refs_list);
 	}
 
@@ -71,25 +90,26 @@ public class BLEUcn
 		// max_ngram_size = max_order
 		HashMap<NGram, Integer> RefsCounts = count_max_ngram_ref(ref_lsar);
 
-		/*
-		 * System.out.println("--------------");
-		 * System.out.println("Ref contains : "); for (NGram ngram :
-		 * RefsCounts.keySet()) { System.out.println(MANYutilities.join(ngram,
-		 * " ") + " # :" + RefsCounts.get(ngram)); }
-		 * System.out.println("--------------"); System.out.flush();
-		 */
+		/*System.out.println("--------------");
+		System.out.println("Ref contains : ");
+		for (NGram ngram : RefsCounts.keySet())
+		{
+			System.out.println(MANYutilities.join(ngram, " ") + " # :" + RefsCounts.get(ngram));
+		}
+		System.out.println("--------------");
+		System.out.flush();*/
 
-		//logger.info("Start counting hyp ngrams ...");
+		// logger.info("Start counting hyp ngrams ...");
 		// HashMap<NGram, Integer> HypCounts = count_ngrams(cn);
 		HashMap<NGram, Integer> HypCounts = faster_count_ngrams(cn, RefsCounts);
-		//logger.info("End counting hyp ngrams ...");
+		// logger.info("End counting hyp ngrams ...");
 
-		/*
-		 * System.out.println("--------------");
-		 * System.out.println("Hyp contains : "); for (NGram ngram :
-		 * HypCounts.keySet()) { System.out.println(MANYutilities.join(ngram,
-		 * " ") + " # :" + HypCounts.get(ngram)); }
-		 */
+		/*System.out.println("--------------");
+		System.out.println("Hyp contains : ");
+		for (NGram ngram : HypCounts.keySet())
+		{
+			System.out.println(MANYutilities.join(ngram, " ") + " # :" + HypCounts.get(ngram));
+		}*/
 
 		/*
 		 * for (Integer ngram_id : HypCounts.keySet()) {
@@ -100,40 +120,36 @@ public class BLEUcn
 
 		for (Entry<NGram, Integer> entry : HypCounts.entrySet())
 		{
-
-			// System.err.println("NGRAM : "+entry.getKey()+
-			// " order : "+entry.getKey().getOrder());
-			// order 0 for unigram, 1 for bi, 2 for tri and 4 for quadri
 			int order = entry.getKey().getOrder();
+			/*System.err.println("NGRAM : " + entry.getKey() + " order : " + entry.getKey().getOrder());*/
+
+			bc.ngram_counts[order] += entry.getValue();
+
 			Integer ref = RefsCounts.get(entry.getKey());
 			if (ref != null)
 			{
 				if (ref >= entry.getValue())
 				{
 					bc.ngram_counts_clip[order] += entry.getValue();
-					/*
-					 * System.err.println("NGRAM ["+order+"] "+entry.getKey()+
-					 * " :  NO CLIP to "+ entry.getValue()+" (ref="+ref+") -> "
-					 * +
-					 * "NGRAM_COUNT_CLIP["+order+"] = "+bc.ngram_counts_clip[order
-					 * ]);
-					 */
+
+					/*System.err.println("NGRAM [" + order + "] " + entry.getKey() + " :  NO CLIP to " + entry.getValue()
+							+ " (ref=" + ref + ") -> " + "NGRAM_COUNT_CLIP[" + order + "] = "
+							+ bc.ngram_counts_clip[order]);*/
+
 				}
 				else
 				{
 					bc.ngram_counts_clip[order] += ref;
-					/*
-					 * System.err.println("NGRAM ["+order+"] "+entry.getKey()+
-					 * " :  CLIP to "+ ref+" (hyp="+entry.getValue()+") -> " +
-					 * "NGRAM_COUNT_CLIP["
-					 * +order+"] = "+bc.ngram_counts_clip[order]);
-					 */
+
+					/*System.err.println("NGRAM [" + order + "] " + entry.getKey() + " :  CLIP to " + ref + " (hyp="
+							+ entry.getValue() + ") -> " + "NGRAM_COUNT_CLIP[" + order + "] = "
+							+ bc.ngram_counts_clip[order]);*/
+
 				}
 			}
 			else
 			{
-				// System.err.println("******************* NGRAM ["+order+"] "+entry.getKey()+
-				// " NOT IN REF ...");
+				/*System.err.println("******************* NGRAM [" + order + "] " + entry.getKey() + " NOT IN REF ...");*/
 			}
 		}
 
@@ -143,9 +159,7 @@ public class BLEUcn
 		{
 			// for brevety : closest ref
 			length = ref_lsar.get(i).size();
-
 			int diff = Math.abs(cn.getSize() - length);
-
 			if (diff < closest_diff)
 			{
 				closest_diff = diff;
@@ -159,7 +173,6 @@ public class BLEUcn
 			}
 		}
 	}
-
 	/*
 	 * public HashMap<NGram, Float> count_ngrams(MANYcn cn) { if (DEBUG)
 	 * logger.info("count_ngrams START "); if (cn == null) {
@@ -278,7 +291,7 @@ public class BLEUcn
 					sl.add(newlst);
 				}
 
-				// remove all ngrams which have been already counted
+				// remove all ngrams already counted
 				for (int i = prev_size - 1; i >= 0; i--)
 				{
 					sl.remove(i);
@@ -288,7 +301,7 @@ public class BLEUcn
 				for (int i = sl.size() - 1; i >= 0; i--)
 				{
 					// remove all n-gram of length len
-					if (sl.get(i).getOrder() == max_ngram_size)
+					if (sl.get(i).getOrder() == BLEUcounts.max_ngram_size)
 						sl.remove(i);
 					else
 					{
@@ -361,100 +374,67 @@ public class BLEUcn
 			{
 				bc.ngram_counts_ref[entry.getKey().getOrder()] += entry.getValue();
 			}
-			catch (ArrayIndexOutOfBoundsException aiob) 
+			catch (ArrayIndexOutOfBoundsException aiob)
 			{
-				System.err.println("NGRAM : "+entry.getKey()+" order = "+entry.getKey().getOrder());
+				System.err.println("NGRAM : " + entry.getKey() + " order = " + entry.getKey().getOrder());
 				aiob.printStackTrace();
 				System.exit(0);
 			}
 		}
-		
-		
+
 		return to_return;
 	}
-	public HashMap<NGram, Integer> count_ngrams(MANYcn cn)
-	{
-		if (DEBUG)
-			logger.info("count_ngrams START ");
-		if (cn == null)
-		{
-			logger.info("Lattice or writer is null");
-			return null;
-		}
-		else if (DEBUG)
-		{
-			logger.info("Initialization OK !");
-		}
+	/*
+	 * public HashMap<NGram, Integer> count_ngrams(MANYcn cn) { if (DEBUG)
+	 * logger.info("count_ngrams START "); if (cn == null) {
+	 * logger.info("Lattice or writer is null"); return null; } else if (DEBUG)
+	 * { logger.info("Initialization OK !"); }
+	 * 
+	 * ArrayList<Node> nodes = new ArrayList<Node>(); Node n = cn.firstNode,
+	 * endNode = null; nodes.add(n);
+	 * 
+	 * NGramToken little_tok = new NGramToken(0.0f, null, n);
+	 * 
+	 * int nbIter = 0;
+	 * 
+	 * /* BufferedWriter writer = null; try { writer = new BufferedWriter(new
+	 * FileWriter("log.log.log")); } catch (IOException ioe) {
+	 * System.err.println("I/O error when creatng file log.log.log " + ioe);
+	 * ioe.printStackTrace(); }
+	 */
+	/*
+	 * while (little_tok.getNode() != cn.lastNode) { for (int ll = 0; ll <
+	 * little_tok.getNode().nextLinks.size(); ll++) { Link l =
+	 * little_tok.getNode().nextLinks.get(ll); String ws =
+	 * cn.getWordFromId(l.getWordId());
+	 * 
+	 * // this is a first link, create history if not a null word if
+	 * (Graph.null_node.equals(ws)) { } else { little_tok.extendNGrams(ws);
+	 * 
+	 * // adding current word as new ngram NGram ngram = new NGram(ws);
+	 * little_tok.addNGram(ngram); } if (ll == 0) endNode = l.getEndNode(); else
+	 * if (endNode != l.getEndNode()) { logger.info(
+	 * "faster_count_ngrams : 2 arcs from the same node do not end at the same node -> not a CN ?"
+	 * ); System.exit(0); } }
+	 * 
+	 * /* try { writer.write("ALL_NGRAMS : "+little_tok.all_ngrams+"\n"); writer
+	 * .write("PREVIOUS_NGRAMS : "+little_tok.previous_ngrams+"\n");
+	 * writer.write("NEW_NGRAMS : "+little_tok.new_ngrams+"\n");
+	 * writer.write("**** END ITERATION " + nbIter + "\n"); writer.flush(); }
+	 * catch (Exception e) { e.printStackTrace(); }
+	 */
+	/*
+	 * little_tok.goToNode(endNode); // logger.info("END ITERATION " + nbIter);
+	 * // if(nbIter == 10) System.exit(0); nbIter++; }
+	 * 
+	 * /* try { writer.close(); } catch (IOException e) { e.printStackTrace(); }
+	 */
 
-		ArrayList<Node> nodes = new ArrayList<Node>();
-		Node n = cn.firstNode, endNode = null;
-		nodes.add(n);
-
-		NGramToken little_tok = new NGramToken(0.0f, null, n);
-
-		int nbIter = 0;
-
-		/*
-		 * BufferedWriter writer = null; try { writer = new BufferedWriter(new
-		 * FileWriter("log.log.log")); } catch (IOException ioe) {
-		 * System.err.println("I/O error when creatng file log.log.log " + ioe);
-		 * ioe.printStackTrace(); }
-		 */
-
-		while (little_tok.getNode() != cn.lastNode)
-		{
-			for (int ll = 0; ll < little_tok.getNode().nextLinks.size(); ll++)
-			{
-				Link l = little_tok.getNode().nextLinks.get(ll);
-				String ws = cn.getWordFromId(l.getWordId());
-
-				// this is a first link, create history if not a null word
-				if (Graph.null_node.equals(ws))
-				{
-				}
-				else
-				{
-					little_tok.extendNGrams(ws);
-
-					// adding current word as new ngram
-					NGram ngram = new NGram(ws);
-					little_tok.addNGram(ngram);
-				}
-				if (ll == 0)
-					endNode = l.getEndNode();
-				else if (endNode != l.getEndNode())
-				{
-					logger
-							.info("faster_count_ngrams : 2 arcs from the same node do not end at the same node -> not a CN ?");
-					System.exit(0);
-				}
-			}
-
-			/*
-			 * try { writer.write("ALL_NGRAMS : "+little_tok.all_ngrams+"\n");
-			 * writer
-			 * .write("PREVIOUS_NGRAMS : "+little_tok.previous_ngrams+"\n");
-			 * writer.write("NEW_NGRAMS : "+little_tok.new_ngrams+"\n");
-			 * writer.write("**** END ITERATION " + nbIter + "\n");
-			 * writer.flush(); } catch (Exception e) { e.printStackTrace(); }
-			 */
-
-			little_tok.goToNode(endNode);
-			// logger.info("END ITERATION " + nbIter);
-			// if(nbIter == 10) System.exit(0);
-			nbIter++;
-		}
-
-		/*
-		 * try { writer.close(); } catch (IOException e) { e.printStackTrace();
-		 * }
-		 */
-
-		if (DEBUG)
-			logger.info("count_ngrams END ");
-
-		return little_tok.all_ngrams;
-	}
+	/*
+	 * if (DEBUG) logger.info("count_ngrams END ");
+	 * 
+	 * return little_tok.all_ngrams; }
+	 */
 
 	public HashMap<NGram, Integer> faster_count_ngrams(MANYcn cn, HashMap<NGram, Integer> ref_ngrams)
 	{
@@ -474,43 +454,47 @@ public class BLEUcn
 		Node n = cn.firstNode, endNode = null;
 		nodes.add(n);
 
-		NGramToken little_tok = new NGramToken(0.0f, null, n);
+		NGramToken little_tok = new NGramToken(null, n);
 		int nbIter = 0;
 
 		// bc.ngram_counts = new int[max_ngram_size];
-		int[] prev_ngram_counts = null;
-		int[] new_ngram_counts = new int[max_ngram_size];
+		// int[] prev_ngram_counts = null;
+		// int[] new_ngram_counts = new int[max_ngram_size];
 
 		while (little_tok.getNode() != cn.lastNode)
 		{
-			prev_ngram_counts = Arrays.copyOf(new_ngram_counts, new_ngram_counts.length);
-			new_ngram_counts = new int[max_ngram_size];
+			// prev_ngram_counts = Arrays.copyOf(new_ngram_counts,
+			// new_ngram_counts.length);
+			// new_ngram_counts = new int[max_ngram_size];
 
 			for (int ll = 0; ll < little_tok.getNode().nextLinks.size(); ll++)
 			{
 				Link l = little_tok.getNode().nextLinks.get(ll);
 				String ws = cn.getWordFromId(l.getWordId());
 
-				// this is a first link, create history if not a null word
 				if (Graph.null_node.equals(ws))
 				{
+					// il faut ajouter tous les ngrams de previous ngram dans
+					// new ngrams
+					little_tok.spreadNGramsOverNullTransition();
 				}
 				else
 				{
 					// extends the ngrams
-					little_tok.extendUsefulNGrams(ws, ref_ngrams);
-					for (int ne = 0; ne < max_ngram_size - 1; ne++)
-					{
-						bc.ngram_counts[ne + 1] += prev_ngram_counts[ne];
-						new_ngram_counts[ne + 1] += prev_ngram_counts[ne];
-					}
+					little_tok.extendUsefulNGrams(ws);
+					/*
+					 * for (int ne = 0; ne < max_ngram_size - 1; ne++) {
+					 * bc.ngram_counts[ne + 1] += prev_ngram_counts[ne];
+					 * new_ngram_counts[ne + 1] += prev_ngram_counts[ne]; }
+					 */
 
 					// adding current word as new 1-gram
 					NGram ngram = new NGram(ws);
-					little_tok.maybeAddNGram(ngram, ref_ngrams);
-
-					new_ngram_counts[0] += 1;
-					bc.ngram_counts[0] += 1;
+					little_tok.addNGram(ngram);
+					little_tok.addNewNGram(ngram);
+					
+					// new_ngram_counts[0] += 1;
+					// bc.ngram_counts[0] += 1;
 				}
 				if (ll == 0)
 					endNode = l.getEndNode();
@@ -532,102 +516,6 @@ public class BLEUcn
 			logger.info("count_ngrams END ");
 
 		return little_tok.all_ngrams;
-	}
-
-	public class BLEUcounts
-	{
-		public int translation_length = 0;
-		public int closest_ref_length = 0;
-		public float[] ngram_counts = null;
-		public float[] ngram_counts_clip = null;
-		public float[] ngram_counts_ref = null;
-
-		public BLEUcounts()
-		{
-			ngram_counts = new float[max_ngram_size];
-			ngram_counts_ref = new float[max_ngram_size];
-			ngram_counts_clip = new float[max_ngram_size];
-		}
-
-		public double computeBLEU()
-		{
-			double brevity = 1;
-			if (translation_length < closest_ref_length)
-			{
-				brevity = Math.exp(1 - closest_ref_length / translation_length);
-			}
-
-			double bleus[] = new double[max_ngram_size];
-			double log_sum = 0;
-			for (int n = 0; n < max_ngram_size; n++)
-			{
-				System.err.print("CORRECT[" + n + "]:" + ngram_counts_clip[n] + " TOTAL[" + n + "]:" + ngram_counts[n]);
-				if (ngram_counts[n] != 0)
-				{
-					bleus[n] = ngram_counts_clip[n] / ngram_counts[n];
-				}
-				else
-				{
-					bleus[n] = 0;
-				}
-				double l = myLog10(bleus[n]);
-				System.err.println("LOG[" + n + "] = " + l);
-				log_sum += l;
-			}
-
-			// System.err.println("log_sum = "+log_sum);
-			double bleu = brevity * Math.exp(log_sum / 4);
-			System.err.printf("BLEU = %.2f, %.1f/%.1f/%.1f/%.1f (BP=%.3f, ratio=%.3f, hyp_len=%d, ref_len=%d)\n",
-					100 * bleu, 100 * bleus[0], 100 * bleus[1], 100 * bleus[2], 100 * bleus[3], brevity,
-					(float) translation_length / (float) closest_ref_length, translation_length, closest_ref_length);
-
-			return bleu;
-		}
-
-		public double computeRecall()
-		{
-			double brevity = 1;
-			if (translation_length < closest_ref_length)
-			{
-				brevity = Math.exp(1 - closest_ref_length / translation_length);
-			}
-
-			double bleus[] = new double[max_ngram_size];
-			double log_sum = 0;
-			for (int n = 0; n < max_ngram_size; n++)
-			{
-				System.err.print("CORRECT[" + n + "]:" + ngram_counts_clip[n] + " REF[" + n + "]:"
-						+ ngram_counts_ref[n]);
-				if (ngram_counts[n] != 0)
-				{
-					bleus[n] = ngram_counts_clip[n] / ngram_counts_ref[n];
-				}
-				else
-				{
-					bleus[n] = 0;
-				}
-				double l = myLog10(bleus[n]);
-				System.err.println("LOG[" + n + "] = " + l);
-				log_sum += l;
-			}
-
-			// System.err.println("log_sum = "+log_sum);
-			double bleu = brevity * Math.exp(log_sum / 4);
-			System.err.printf("BLEU = %.2f, %.1f/%.1f/%.1f/%.1f (BP=%.3f, ratio=%.3f, hyp_len=%d, ref_len=%d)\n",
-					100 * bleu, 100 * bleus[0], 100 * bleus[1], 100 * bleus[2], 100 * bleus[3], brevity,
-					(float) translation_length / (float) closest_ref_length, translation_length, closest_ref_length);
-
-			return bleu;
-		}
-
-		private double myLog10(double d)
-		{
-			if (d == 0)
-				// return -Double.MAX_VALUE;
-				return -99999;
-			// System.err.println("d != -1 : "+d);
-			return Math.log10(d);
-		}
 	}
 
 }

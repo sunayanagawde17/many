@@ -15,17 +15,16 @@ public class MANYcn extends Graph
 	public int getSize(){ return nbMesh; }
 	public int getLength(){	return nbMesh; }
 
-
 	private int nbMesh = 0;
 	private int numSys = 0;
-	private float[] sysWeights = new float[0];
+	private float[] sysWeights = null;
 	
 	public MANYcn()
 	{
 		super();
 	}
 	
-	public MANYcn(ArrayList<ArrayList<Comparable<String>>> cn, ArrayList<ArrayList<Float>> cn_scores)
+	public MANYcn(ArrayList<ArrayList<Comparable<String>>> cn, ArrayList<ArrayList<Float>> cn_scores, ArrayList<ArrayList<Integer>> cn_sysids)
 	{
 		super();
 		
@@ -54,7 +53,17 @@ public class MANYcn extends Graph
 				wID = createWord(cn.get(i).get(j).toString());
 				
 				//make link between firstNode and endNode
-				createLink(startNode, endNode, cn_scores.get(i).get(j), cn_scores.get(i).get(j), wID);
+				if(cn_sysids != null)
+				{
+					ArrayList<Integer> sysids = new ArrayList<Integer>();
+					sysids.add(cn_sysids.get(i).get(j));
+					createLink(startNode, endNode, cn_scores.get(i).get(j), cn_scores.get(i).get(j), wID, sysids);
+				}
+				else
+				{
+					createLink(startNode, endNode, cn_scores.get(i).get(j), cn_scores.get(i).get(j), wID, null);
+				}
+				
 			}
 		}
 		lastNode = endNode;
@@ -74,8 +83,9 @@ public class MANYcn extends Graph
 			//System.err.println("MANYcn::changeCNWeights : cn number "+i++);
 			if(cn == null)
 			{
-				System.err.println("MANYcn::outputFullCNs : CN is null ... exiting !");
-				System.exit(0);
+				System.err.println("MANYcn::changeSysWeights : CN is null ...");
+                return;
+				//System.exit(0);
 			}
 			cn.changeSysWeights(sw);
 		}
@@ -90,7 +100,7 @@ public class MANYcn extends Graph
 		}
 		else if(sysWeights.length != sw.length)
 		{
-			System.err.println("MANYcn::changeSysWeights : wrong number of weights ...");
+			System.err.println("MANYcn::changeSysWeights : wrong number of weights "+sysWeights.length+" != "+sw.length+" ... skipping !");
 			return;
 		}
 		for(int i=0; i<sysWeights.length; i++)
@@ -98,7 +108,7 @@ public class MANYcn extends Graph
 			sysWeights[i] = sw[i];
 		}
 		
-		//System.err.println("********MANYcn::toFullCNString : START");
+		//System.err.println("********MANYcn::changeSysWeights : START");
 		ArrayList<Node> curNodes = new ArrayList<Node>();
 		ArrayList<Node> nextNodes = new ArrayList<Node>();
 		curNodes.add(firstNode);
@@ -109,11 +119,12 @@ public class MANYcn extends Graph
 			curNodes.remove(0);
 			for(int i=0; i<curNode.nextLinks.size(); i++)
 			{
-				
-				//if(curNode.nextLinks.get(i).wordId != Graph.null_node_id)
-				if(curNode.nextLinks.get(i).sysid != -1)
+				if(curNode.nextLinks.get(i).sysids != null && curNode.nextLinks.get(i).sysids.get(0) != -1)
 				{
-					curNode.nextLinks.get(i).posterior = curNode.nextLinks.get(i).probability = sysWeights[curNode.nextLinks.get(i).sysid];
+					for (int sysid : curNode.nextLinks.get(i).sysids)
+					{
+						curNode.nextLinks.get(i).posterior = curNode.nextLinks.get(i).probability = sysWeights[sysid];
+					}
 				}
 				if(curNode.nextLinks.get(i).endNode != lastNode && nextNodes.contains(curNode.nextLinks.get(i).endNode) == false)
 					nextNodes.add(curNode.nextLinks.get(i).endNode);
@@ -239,7 +250,7 @@ public class MANYcn extends Graph
 							System.err.println("Not a good '"+CN_SYS_WEIGHTS_PREFIX+"' line ... exiting ! s="+s);
 							System.exit(0);
 						}
-						
+						//TODO : should verify that nbSys and sysWeight length are identical
 						g.sysWeights = new float[nbSys];
 						int i = 0;
 						while (st.hasMoreTokens())
@@ -296,7 +307,9 @@ public class MANYcn extends Graph
 								nfe.printStackTrace();
 							}
 							
-							g.createLink(startNode, endNode, score, score, wID, sysid);
+							ArrayList<Integer> sysids = new ArrayList<Integer>();
+							sysids.add(sysid);
+							g.createLink(startNode, endNode, score, score, wID, sysids);
 						}
 					}
 					else
@@ -419,7 +432,7 @@ public class MANYcn extends Graph
 	{
 		String line = null;
 		float score = 0.0f;
-		int alignid, wID, sysid;
+		int alignid, wID, sysid=-1;
 		float t = 0.0f;
 		Node startNode = null; //createNode(t);
 		firstNode= createNode(t++);
@@ -445,6 +458,14 @@ public class MANYcn extends Graph
 						endNode = createNode(t++);
 						
 						StringTokenizer st = new StringTokenizer(line);
+						
+						if(	(st.countTokens()-2) %3 != 0)
+						{
+							System.err.println("This seems not to be a FULLCN ... exiting ! line="+line);
+							System.err.println("FULLCN format is the following : <align> <alignid> <word> <prob> <sysid>");
+							System.exit(0);
+						}
+						
 						String s = st.nextToken();
 						if (s.equals("align") == false)
 						{
@@ -484,7 +505,9 @@ public class MANYcn extends Graph
 								nfe.printStackTrace();
 							}
 							
-							createLink(startNode, endNode, score, score, wID);
+							ArrayList<Integer> sysids = new ArrayList<Integer>();
+							sysids.add(sysid);
+							createLink(startNode, endNode, score, score, wID, sysids);
 						}
 					}
 					else
@@ -510,7 +533,8 @@ public class MANYcn extends Graph
 		//System.err.println("********MANYcn::toFullCNString : START");
 		StringBuilder s = new StringBuilder("name cn1best\nnumaligns ");
 		s.append(nodes.size()-1).append("\nnumsys ").append(numSys).append("\nnbsys ");
-		s.append(sysWeights.length);
+		if(sysWeights != null) s.append(sysWeights.length);
+		else s.append(0);
 		s.append("\nsysweights");
 		for(int i=0; i<sysWeights.length; i++)
 			s.append(" "+sysWeights[i]);
@@ -526,13 +550,20 @@ public class MANYcn extends Graph
 		{
 			Node curNode = curNodes.get(0);
 			curNodes.remove(0);
+			
+			if(curNode.nextLinks == null)
+			{
+				s.append("\n");
+				continue;
+			}
+			
 			for(int i=0; i<curNode.nextLinks.size(); i++)
 			{
 				s.append(idToWord.get(curNode.nextLinks.get(i).wordId));
 				s.append(" ");
 				s.append(curNode.nextLinks.get(i).posterior);
 				s.append(" ");
-				s.append(curNode.nextLinks.get(i).sysid);
+				s.append(curNode.nextLinks.get(i).sysids.get(0));
 				s.append(" ");
 				
 				if(curNode.nextLinks.get(i).endNode != lastNode && nextNodes.contains(curNode.nextLinks.get(i).endNode) == false)
@@ -654,7 +685,7 @@ public class MANYcn extends Graph
 					System.err.println("MANYcn::toCN : le Node n'existe pas encore ... pas normal");
 					System.exit(0);
 				}
-				cn.createUniqueLink(startNode, endNode, l.probability, l.posterior, idToWord.get(l.wordId));
+				cn.createUniqueLink(startNode, endNode, l.probability, l.posterior, idToWord.get(l.wordId), l.sysids);
 			}
 		}
 		cn.lastNode = endNode;

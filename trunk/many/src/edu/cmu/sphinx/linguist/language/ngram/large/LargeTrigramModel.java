@@ -14,7 +14,6 @@
  */
 package edu.cmu.sphinx.linguist.language.ngram.large;
 
-import java.io.File;
 import java.net.URL;
 
 import edu.cmu.sphinx.linguist.dictionary.Dictionary;
@@ -29,7 +28,7 @@ import edu.cmu.sphinx.util.props.*;
  */
 public class LargeTrigramModel extends LargeNGramModel {
 
-    /** A property that defines that maximum number of trigrams to be cached */
+    /** The property that defines that maximum number of trigrams to be cached */
     @S4Integer(defaultValue = 100000)
     public static final String PROP_TRIGRAM_CACHE_SIZE = "trigramCacheSize";
 
@@ -58,7 +57,7 @@ public class LargeTrigramModel extends LargeNGramModel {
         // Inline conditional statement to prevent maxDepth being > to 3
         // We are in a Trigram wrapper, after all
         super(format, urlLocation, ngramLogFile, maxTrigramCacheSize,
-                maxBigramCacheSize, clearCacheAfterUtterance, (maxDepth > 3 ? 3
+                clearCacheAfterUtterance, (maxDepth > 3 ? 3
                         : maxDepth), logMath, dictionary,
                 applyLanguageWeightAndWip, languageWeight, wip, unigramWeight,
                 fullSmear);
@@ -80,16 +79,12 @@ public class LargeTrigramModel extends LargeNGramModel {
     @Override
     public void newProperties(PropertySheet ps) throws PropertyException {
         logger = ps.getLogger();
-        format = ps.getString(LanguageModel.PROP_FORMAT);
-        URL urlLocation = ConfigurationManagerUtils.getResource(PROP_LOCATION,
-                ps);
-        location = new File(urlLocation.getFile());
+        location = ConfigurationManagerUtils.getResource(PROP_LOCATION, ps);
         ngramLogFile = ps.getString(PROP_QUERY_LOG_FILE);
         clearCacheAfterUtterance = ps
                 .getBoolean(PROP_CLEAR_CACHES_AFTER_UTTERANCE);
         maxDepth = ps.getInt(LanguageModel.PROP_MAX_DEPTH);
-        maxNGramCacheTmp = ps.getInt(PROP_TRIGRAM_CACHE_SIZE);
-        maxBigramCacheTmp = ps.getInt(PROP_BIGRAM_CACHE_SIZE);
+        ngramCacheSize = ps.getInt(PROP_TRIGRAM_CACHE_SIZE);
         logMath = (LogMath) ps.getComponent(PROP_LOG_MATH);
         dictionary = (Dictionary) ps.getComponent(PROP_DICTIONARY);
         applyLanguageWeightAndWip = ps

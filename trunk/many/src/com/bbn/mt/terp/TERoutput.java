@@ -970,9 +970,13 @@ public class TERoutput
 						String s = result_cn.toFullCNString(params.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
 						outWriter.write(s);
 					}
+                    else if(al == null)
+                    {
+                        outWriter.write(TERalignmentCN.emptyFullCNString(params.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS)));
+                    }
 					else
 					{
-						System.err.println("MANY::outputFullCNs -> Pas un CN !!!");
+						System.err.println("TERoutput::outputFullCNs -> Pas un CN !!!");
 						System.exit(0);
 					}
 				}

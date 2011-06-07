@@ -505,7 +505,7 @@ public class TERalignmentCN extends TERalignment
 
 				if (full_cn.get(i).size() > 1)
 				{
-					System.err.println("taille t=" + full_cn.get(i).size() + " superieure à 1 .. on quitte");
+					System.err.println("size t=" + full_cn.get(i).size() + " bigger than 1 .. exiting!");
 					System.exit(0);
 				}
 			}
@@ -728,8 +728,8 @@ public class TERalignmentCN extends TERalignment
 				{
 					if (DEBUG)
 					{
-						// System.err.println("proba for word "+w+" was "+cn_scores.get(pos).get(j)+" and becomes "+(cn_scores.get(pos).get(j)
-						// + aftershift_scores[hi]));
+						System.err.println("proba for word "+w+" was "+cn_scores.get(pos).get(j)+" and becomes "+(cn_scores.get(pos).get(j)
+						 + aftershift_scores[hi]));
 					}
 					cn_scores.get(pos).set(j, cn_scores.get(pos).get(j) + aftershift_scores[hi]);
 					return;
@@ -899,6 +899,21 @@ public class TERalignmentCN extends TERalignment
 		return s.toString();
 	}
 
+	public static String emptyFullCNString(double[] sysWeights)
+	{
+		StringBuilder s = new StringBuilder("\nname cn1best\nnumaligns ");
+
+		s.append(0);
+
+		s.append("\nnumsys ").append("-1").append("\nnbsys ");
+		s.append(sysWeights.length);
+		s.append("\nsysweights");
+		for (int i = 0; i < sysWeights.length; i++)
+			s.append(" " + sysWeights[i]);
+		s.append("\n\n");
+
+		return s.toString();
+	}
 	/*
 	 * public static String toCNString(ArrayList<ArrayList<Comparable<String>>>
 	 * cn) { StringBuilder s = new
