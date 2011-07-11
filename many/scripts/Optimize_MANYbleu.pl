@@ -223,6 +223,7 @@ if($_ITER == 0)
     for(my $i=0; $i<$_NB_SYS; $i++)
     {
         cp("$output.cn.$i", "$_WORKING_DIR/DEFAULT.".basename($output).".cn.$i");
+        cp("$output.cn.$i", "$_WORKING_DIR/BEST.".basename($output).".cn.$i");
     }
 }
 else
