@@ -1603,7 +1603,6 @@ sub define_tuning_tune_align {
         $optim_cmd .= "\ncp $dir/$condor_basename.xml .";
         $optim_cmd .= "\nxmlOptimizer $condor_basename.xml";
         $optim_cmd .= "\ncp $dir/tuning/$VERSION/$tuning_align_dir/".basename($output)."* $dir/tuning/";
-        #$optim_cmd .= "\ncp $dir/tuning/$VERSION/".basename($output)."* $dir/tuning/";
         $optim_cmd .= "\ncd ..";
         print STDOUT "CMD : $optim_cmd\n";
     

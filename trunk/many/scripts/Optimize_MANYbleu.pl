@@ -225,6 +225,19 @@ if($_ITER == 0)
         cp("$output.cn.$i", "$_WORKING_DIR/DEFAULT.".basename($output).".cn.$i");
         cp("$output.cn.$i", "$_WORKING_DIR/BEST.".basename($output).".cn.$i");
     }
+    
+    print STDOUT "First run : saving default costs";
+    open(BESTWEIGHTS, ">$_WORKING_DIR/$_CONDOR_BESTWEIGHTS") or die "Can't create $_WORKING_DIR/$_CONDOR_BESTWEIGHTS file! $!";
+    print BESTWEIGHTS "deletion:$_WEIGHTS[0] stem:$_WEIGHTS[1] synonym:$_WEIGHTS[2] insertion:$_WEIGHTS[3] substitution:$_WEIGHTS[4]";
+    if(scalar @_WEIGHTS > 6)
+    {
+        print BESTWEIGHTS " match:$_WEIGHTS[5] shift:$_WEIGHTS[6]";
+    }
+    else
+    {
+        print BESTWEIGHTS " match:0.0 shift:$_WEIGHTS[5]";
+    }
+    close(BESTWEIGHTS);
 }
 else
 {
@@ -234,6 +247,7 @@ else
     {
         open(BEST, ">$_CONDOR_BEST") or die "Can't create $_CONDOR_BEST file! $!";
         $best_score = <BEST>;
+        chomp $best_score;
         $update_best = 0 unless($score > $best_score);
         close(BEST);
     }
@@ -246,7 +260,7 @@ else
             cp("$output.cn.$i", "$_WORKING_DIR/BEST.".basename($output).".cn.$i");
         }
 
-        open(BESTWEIGHTS, ">$_CONDOR_BESTWEIGHTS") or die "Can't create $_CONDOR_BESTWEIGHTS file! $!";
+        open(BESTWEIGHTS, ">$_WORKING_DIR/$_CONDOR_BESTWEIGHTS") or die "Can't create $_WORKING_DIR/$_CONDOR_BESTWEIGHTS file! $!";
         print BESTWEIGHTS "deletion:$_WEIGHTS[0] stem:$_WEIGHTS[1] synonym:$_WEIGHTS[2] insertion:$_WEIGHTS[3] substitution:$_WEIGHTS[4]";
         if(scalar @_WEIGHTS > 6)
         {
