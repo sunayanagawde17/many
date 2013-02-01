@@ -56,11 +56,12 @@ public class BLEUtask implements Callable<BLEUcounts>
 			
 			List<String[]> refs = all_refs_tok.get(pid);
 			
-			if (refs.size() > 1)
+			if (refs.size() > 1 && DEBUG)
 			{
 				for(int n=0; n<refs.size(); n++)
 				{
-					System.err.println("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
+					//System.out.println("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
+					logger.info("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
 				}
 			}
 	

@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Vector;
 import java.util.regex.Pattern;
-import com.bbn.mt.terp.TERutilities;
 public class Graph
 {
 	public static final String null_node = "NULL";
@@ -517,13 +516,38 @@ public class Graph
 		}
 		// cerr << "********load : END" << endl;
 	}
+	
+	public String getHTKString()
+	{
+		StringBuilder s = new StringBuilder("# Header\n");
+		s.append("VERSION=1.0\nUTTERANCE=utt_id\n#Size definition\n");
+		s.append("N=").append(nodes.size()).append("\tL=").append(nbLinks).append("\n").append("# Node definitions\n");
+		for (Node n : nodes)
+		{
+			s.append("I=").append(n.id).append("\tt=").append(n.time).append("\n");
+		}
+		s.append("# Link definitions\n");
+		int j = 0;
+		for (Node n : nodes)
+		{
+			for (Link l : n.nextLinks)
+			{
+				s.append("J=").append(j).append("\tS=").append(l.startNode.id).append("\tE=").append(l.endNode.id).append("\tW=")
+				.append(idToWord.get(l.wordId)).append("\ta=").append(l.posterior).append("\n");
+				j++;
+			}
+		}
+		return s.toString();
+	}
+	
 	public void printHTK(String fileOut)
 	{
 		BufferedWriter writer = null;
 		try
 		{
 			writer = new BufferedWriter(new FileWriter(fileOut));
-			writer.write("# Header");
+			writer.write(getHTKString());
+			/*writer.write("# Header");
 			writer.newLine();
 			writer.write("VERSION=1.0");
 			writer.newLine();
@@ -552,7 +576,7 @@ public class Graph
 					writer.newLine();
 					j++;
 				}
-			}
+			}*/
 			writer.close();
 		}
 		catch (IOException ioe)

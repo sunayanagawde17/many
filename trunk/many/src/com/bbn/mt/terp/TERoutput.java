@@ -268,7 +268,7 @@ public class TERoutput
 				{
 					TERalignmentCN result_cn = (TERalignmentCN) result;
 					//String s = result_cn.toFullCNString(TERpara.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
-					String s = result_cn.toFullCNString(params.para().get_doublelist(TERpara.OPTIONS.SYS_WEIGHTS));
+					String s = result_cn.toCNString();
 					out.write(s);
 					out.newLine();
 				}

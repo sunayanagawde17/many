@@ -33,10 +33,11 @@ foreach my $h (@_HYPOTHESES)
 {
     push(@_PRIORS, 0.1);
 }
-my $_REFERENCE=undef;
+my @_REFERENCES=();
 
 #0ther variables
 my $_NB_THREADS=5;
+my $_NB_BACKBONES=-1;
 my $_LOG_BASE=2.718;
 my $_HELP=0;
 
@@ -64,7 +65,8 @@ my %_CONFIG = (
 'working-dir' => \$_WORKING_DIR,
 'output' => \$_OUTPUT, 
 'hyp' => \@_HYPOTHESES, 
-'reference' => \$_REFERENCE,
+'nb-backbones' => \$_NB_BACKBONES,
+'reference' => \@_REFERENCES,
 'wordnet' => \$_WORDNET, 'shift-stop-word-list' => \$_SHIFT_STOP_WORD_LIST,
 'paraphrases' => \$_PARAPHRASE_DB, 'shift-constraint' => \$_SHIFT_CONSTRAINT,
 'multithread' => \$_NB_THREADS,
@@ -74,13 +76,14 @@ my %_CONFIG = (
 ); 
 
 
-my $usage = "MANYdecode.pl \
+my $usage = "Optimize_MANYdecode.pl \
 --many <MANY.jar to use>             : default is $_MANY
 --many-bleu                          : default is $_MANY_BLEU
 --working-dir <working directory>    : default is $_WORKING_DIR \
 --output <output file> \
 --hyp <hypothesis file>              : repeat this param for each input hypotheses \
---reference <reference file> \
+--nb-backbones <number of backbones> \
+--reference <reference file>         : repeat this param for each references \
 **** TERp PARAMETERS \
 --wordnet <wordnet database> \
 --shift-stop-word-list <list> \
@@ -94,10 +97,21 @@ my $usage = "MANYdecode.pl \
 
 ########################
 ######################## Parsing parameters with GetOptions
-$_HELP = 1 unless GetOptions(\%_CONFIG, 'many=s', 'many-bleu=s', 'working-dir=s', 'output=s', 'hyp=s@', 'reference=s',
+$_HELP = 1 unless GetOptions(\%_CONFIG, 'many=s', 'many-bleu=s', 'working-dir=s', 'output=s', 'hyp=s@', 'nb-backbones=i', 'reference=s@',
 'wordnet=s', 'shift-stop-word-list=s', 'paraphrases=s', 'shift-constraint=s',
 'multithread=i', 'priors=f{,}', 
 'log-base=f', 'help');
+
+print "$0 running on ".`hostname -f`."\n";
+if($_HELP || !defined $_OUTPUT || scalar @_HYPOTHESES < 2 || scalar @_REFERENCES < 1)
+{
+    print $usage;
+    print "Please, give an output\n" unless (defined $_OUTPUT);
+    print "Please, give several hypotheses\n" if (scalar @_HYPOTHESES < 2);
+    print "Please, give at least one reference \n" if (scalar @_REFERENCES < 1);
+
+    exit 1;
+}
 
 
 my $_CONDOR_BESTWEIGHTS="BEST.".basename($_OUTPUT).".align.costs";
@@ -170,11 +184,17 @@ die "Please, specify a working directory ...\n" unless(defined($_WORKING_DIR) &&
 
 ########################
 
-my @cmd = ("time", "$_MANY_BLEU", "--many", $_MANY, "--working-dir", "$_WORKING_DIR", "--output", $_OUTPUT, "--reference", $_REFERENCE);
+my @cmd = ("time", "$_MANY_BLEU", "--many", $_MANY, "--working-dir", "$_WORKING_DIR", "--output", $_OUTPUT); #, "--reference", $_REFERENCE);
+foreach my $r (@_REFERENCES)
+{
+    push(@cmd, ("--reference", "$r"));
+}
+
 foreach my $h (@_HYPOTHESES)
 {
     push(@cmd, ("--hyp", "$h"));
 }
+push(@cmd, ("--nb-backbones", $_NB_BACKBONES));
 push(@cmd, @_COSTS);
 push(@cmd, ("--shift-constraint", $_SHIFT_CONSTRAINT));
 push(@cmd, ("--wordnet", $_WORDNET));
@@ -184,7 +204,7 @@ push(@cmd, ("--multithread", $_NB_THREADS));
 push(@cmd, ("--priors",  @_PRIORS)) if(scalar @_PRIORS > 0);
 push(@cmd, ("--log-base", $_LOG_BASE));
    
-print STDOUT "Executing ".join(" ", @cmd);
+print STDOUT "Executing <MANYbleu>: ".join(" ", @cmd);
 
 safesystem(@cmd);
 
@@ -226,8 +246,7 @@ if($_ITER == 0)
         cp("$output.cn.$i", "$_WORKING_DIR/BEST.".basename($output).".cn.$i");
     }
     
-    print STDOUT "First run : saving default costs";
-    open(BESTWEIGHTS, ">$_WORKING_DIR/$_CONDOR_BESTWEIGHTS") or die "Can't create $_WORKING_DIR/$_CONDOR_BESTWEIGHTS file! $!";
+    open(BESTWEIGHTS, ">$_CONDOR_BESTWEIGHTS") or die "Can't create $_CONDOR_BESTWEIGHTS file! $!";
     print BESTWEIGHTS "deletion:$_WEIGHTS[0] stem:$_WEIGHTS[1] synonym:$_WEIGHTS[2] insertion:$_WEIGHTS[3] substitution:$_WEIGHTS[4]";
     if(scalar @_WEIGHTS > 6)
     {
@@ -245,9 +264,8 @@ else
     my $update_best = 1;
     if(-e $_CONDOR_BEST)
     {
-        open(BEST, ">$_CONDOR_BEST") or die "Can't create $_CONDOR_BEST file! $!";
+        open(BEST, "<$_CONDOR_BEST") or die "Can't create $_CONDOR_BEST file! $!";
         $best_score = <BEST>;
-        chomp $best_score;
         $update_best = 0 unless($score > $best_score);
         close(BEST);
     }
@@ -260,7 +278,7 @@ else
             cp("$output.cn.$i", "$_WORKING_DIR/BEST.".basename($output).".cn.$i");
         }
 
-        open(BESTWEIGHTS, ">$_WORKING_DIR/$_CONDOR_BESTWEIGHTS") or die "Can't create $_WORKING_DIR/$_CONDOR_BESTWEIGHTS file! $!";
+        open(BESTWEIGHTS, ">$_CONDOR_BESTWEIGHTS") or die "Can't create $_CONDOR_BESTWEIGHTS file! $!";
         print BESTWEIGHTS "deletion:$_WEIGHTS[0] stem:$_WEIGHTS[1] synonym:$_WEIGHTS[2] insertion:$_WEIGHTS[3] substitution:$_WEIGHTS[4]";
         if(scalar @_WEIGHTS > 6)
         {

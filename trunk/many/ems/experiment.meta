@@ -82,18 +82,26 @@ tokenize-reference
 	pass-unless: output-tokenizer
 	multiref: $moses-script-dir/ems/support/run-command-on-multiple-refsets.perl
 	template: $output-tokenizer < IN > OUT
+prepare-inputs
+    in: tokenized-input
+    out: tok-input-id 
+	default-name: data
+prepare-references
+    in: tokenized-reference
+    out: tok-ref-id
+	default-name: data
 tune-align
-    in: tokenized-input tokenized-reference
+    in: tok-input-id tok-ref-id
     out: align-basename
 	default-name: tuning/BEST.many.output
-    rerun-on-change: shift-constraint
-    not-error: error killed
+    rerun-on-change: shift-constraint do-tune-align 
+    not-error: error,killed
 tune-decoder
 	in: align-basename tokenized-reference
 	out: decod-weights
-	default-name: tuning/BEST.decod.weights
+	default-name: BEST.decod.weights
     qsub-script: yes
-	rerun-on-change: decoder-settings tuning-settings decodlm nbest lambda async
+	rerun-on-change: decoder-settings tuning-settings decodlm nbest lambda async TUNING:sc-config
 	not-error: trans: No such file or directory
 generate-config-file
 	in: align-basename decod-weights 
@@ -119,8 +127,32 @@ tokenize-input
 	default-name: evaluation/input.tok
 	pass-unless: input-tokenizer
 	template: $input-tokenizer < IN > OUT
+reference-from-sgm
+	in: reference-sgm input-sgm
+	out: raw-reference
+	default-name: evaluation/reference.txt
+	template: $moses-script-dir/ems/support/reference-from-sgm.perl IN IN1 OUT
+tokenize-reference
+	in: raw-reference
+	out: tokenized-reference
+	default-name: evaluation/reference.tok
+	pass-unless: output-tokenizer
+	multiref: $moses-script-dir/ems/support/run-command-on-multiple-refsets.perl
+	template: $output-tokenizer < IN > OUT
+prepare-inputs
+    in: tokenized-input
+    out: tok-input-id 
+    default-name: data
+prepare-references
+    in: tokenized-reference
+    out: tok-ref-id
+    default-name: data
+align
+    in: tok-input-id TUNING:align-basename tok-ref-id
+    out: align-basename
+    default-name: evaluation/BEST.many.test
 decode
-	in: TUNING:config-for-eval tokenized-input
+	in: align-basename TUNING:decod-weights
 	out: syscomb-output
 	default-name: evaluation/output
 	rerun-on-change: decoder decoder-settings nbest report-segmentation report-precision-by-coverage

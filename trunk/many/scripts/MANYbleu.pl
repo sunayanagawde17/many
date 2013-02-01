@@ -4,6 +4,7 @@
 use strict;
 #use warnings;
 use File::Path;
+use File::Basename;
 use Cwd;
 use Getopt::Long;
 use File::Copy "cp";
@@ -21,9 +22,11 @@ my $_CURRENT_DIR=cwd();
 my $_WORKING_DIR;
 my $_CONFIG_FILE=undef;
 my @_HYPOTHESES=();
+my @_HYPOTHESES_ID=();
 my $_NB_SYS=undef;
 my $_NB_THREADS=undef;
-my $_REFERENCE=undef;
+my @_REFERENCES=();
+my $_NB_BACKBONES=-1;
 
 # TERp parameters
 my ($_DEL_COST, $_STEM_COST, $_SYN_COST, $_INS_COST, $_SUB_COST, $_MATCH_COST, $_SHIFT_COST) = (1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0);
@@ -44,7 +47,8 @@ my %_CONFIG = (
 'working-dir' => \$_WORKING_DIR,
 'output' => \$_OUTPUT, 
 'hyp' => \@_HYPOTHESES, 
-'reference' => \$_REFERENCE,
+'nb-backbones' => \$_NB_BACKBONES, 
+'reference' => \@_REFERENCES,
 'deletion' => \$_DEL_COST, 'stem' => \$_STEM_COST,
 'synonym' => \$_SYN_COST, 'insertion' => \$_INS_COST,
 'substitution' => \$_SUB_COST, 'match' => \$_MATCH_COST,
@@ -65,6 +69,7 @@ my $usage = "MANYdecode.pl \
 --working-dir <working directory>    : default is $_WORKING_DIR \
 --output <output file>               : default is $_OUTPUT \
 --hyp <hypothesis file>              : repeat this param for each input hypotheses \
+--nb-backbones <number of backbones> : default is -1 meaning every system is considered as backbone \
 --reference <reference file> \
 **** TERp PARAMETERS \
 --deletion <deletion cost>           : default is $_DEL_COST \
@@ -86,13 +91,15 @@ my $usage = "MANYdecode.pl \
 
 ########################
 ######################## Parsing parameters with GetOptions
-$_HELP = 1 unless GetOptions(\%_CONFIG, 'many=s', 'config=s', 'working-dir=s', 'output=s', 'hyp=s@', 'reference=s',
+$_HELP = 1 unless GetOptions(\%_CONFIG, 'many=s', 'config=s', 'working-dir=s', 'output=s', 'hyp=s@', 'nb-backbones=i', 'reference=s@',
 'deletion=f', 'insertion=f', 'substitution=f', 'shift=f', 'stem=f', 'synonym=f', 'match=f',
 'wordnet=s', 'shift-stop-word-list=s', 'paraphrases=s', 'shift-constraint=s',
 'multithread=i', 'priors=f{,}', 
 'log-base=f', 'help');
 
 ######################## PREPARE DATA
+
+print "$0 running on ".`hostname -f`."\n";
 
 if(defined $_CONFIG_FILE)
 {
@@ -146,6 +153,8 @@ print STDOUT " OK \n";
 print STDOUT "Entering $_WORKING_DIR ... \n";
 chdir $_WORKING_DIR;
 
+my $_DATA_DIR="$_WORKING_DIR/data";
+
 print STDOUT "Using $_NB_SYS systems ...\n";
 print STDOUT "Checking size of hypotheses files ...\n";
 my $nb_sent = undef;
@@ -183,27 +192,33 @@ print STDOUT "hypotheses files: OK \n";
 # Cleaning working dir
 if($_CLEAN > 0)
 {
-	print STDOUT "Cleaning working directory $_WORKING_DIR ...";
+	print STDOUT "Cleaning working directory $_WORKING_DIR...";
 	unlink $_OUTPUT;
 	print STDOUT " OK \n";
 }
 
-######################## GENERATE SCORES FILES
+
+=begin
+######################## GENERATE SCORES AND ID FILES
 # - This will be changed later when better weights will be calculated
+
 for(my $i=0; $i<$_NB_SYS; $i++)
 {
-    if( (-e "${_HYPOTHESES[$i]}.id") && (-e "${_HYPOTHESES[$i]}.sc.id") )
-    {
-        print STDOUT "${_HYPOTHESES[$i]}.id and ${_HYPOTHESES[$i]}.sc.id already exist ... reusing!\n";
-        next;
-    }
+    # 11/12/2011 : better to always rewrite .id files
+    #if( (-e "${_HYPOTHESES[$i]}.id") && (-e "${_HYPOTHESES[$i]}.sc.id") )
+    #{
+    #    print STDOUT "${_HYPOTHESES[$i]}.id and ${_HYPOTHESES[$i]}.sc.id already exist ... reusing!\n";
+    #    next;
+    #}
 	
-    print STDOUT "Generating score file and adding ids for $_HYPOTHESES[$i] ...";
+    print STDOUT "Generating score file and adding ids for $_HYPOTHESES[$i]...";
     open(FROM, "$_HYPOTHESES[$i]") or die "Can't open $_HYPOTHESES[$i]\n";
     my @lines = <FROM>;
     close(FROM);
-    open(ID, ">${_HYPOTHESES[$i]}.id") or die "Cant create ${_HYPOTHESES[$i]}.id\n";
-    open(SC_ID, ">${_HYPOTHESES[$i]}.sc.id") or die "Cant create ${_HYPOTHESES[$i]}.sc.id\n";
+    # 05/03/12 now create hypotheses in data dir
+    my $basename = basename($_HYPOTHESES[$i]); 
+    open(ID, ">$_DATA_DIR/$basename.id") or die "Cant create $_DATA_DIR/$basename.id\n";
+    open(SC_ID, ">$_DATA_DIR/$basename.sc.id") or die "Cant create $_DATA_DIR/$basename.sc.id\n";
 	my $nbl = 0;
     foreach my $line (@lines)
     {
@@ -217,32 +232,50 @@ for(my $i=0; $i<$_NB_SYS; $i++)
     }
     close(ID);
     close(SC_ID);
+
+    push(@_HYPOTHESES_ID, "$_DATA_DIR/$basename");
+
     print STDOUT " OK \n";
 }
 
-open(FROM, "$_REFERENCE") or die "Can't open reference file $_REFERENCE. $!\n";
-my @lines = <FROM>; 
-close(FROM);
-open(ID, ">$_REFERENCE.id") or die "Cant create reference.id file $_REFERENCE.id. $!\n";
-my $nbl=0;
-foreach my $line (@lines)
+foreach my $ref (@_REFERENCES)
 {
-   $line =~ s/$/ ([set][doc.00][$nbl])/;
-   print ID $line;
-    $nbl++;
+    print STDOUT "Adding ids for $ref...";
+    open(FROM, "$ref") or die "Can't open reference file $ref. $!\n";
+    my @lines = <FROM>; 
+    close(FROM);
+    my $basename = basename($ref); 
+    open(ID, ">$_DATA_DIR/$basename.id") or die "Cant create reference.id file $_DATA_DIR/$basename.id. $!\n";
+    my $nbl=0;
+    foreach my $line (@lines)
+    {
+        $line =~ s/$/ ([set][doc.00][$nbl])/;
+        print ID $line;
+        $nbl++;
+    }
+    close(ID);
+
+    push(@_REFERENCES_ID, "$_DATA_DIR/$basename");
+    
+    print STDOUT " OK \n";
 }
-close(ID);
+=cut
 ######################## GENERATE MANY CONFIG FILE
 ## Build command
 
 # The arguments for generate_config function
 my @cfg =();
 push(@cfg, ("--config-type", "BLEU", "--nbsys", "$_NB_SYS", "--output", "$_OUTPUT"));
-push(@cfg, ("--reference", $_REFERENCE));
+#push(@cfg, ("--reference", $_REF_BASENAME));
+foreach my $r (@_REFERENCES)
+{
+    push(@cfg, ("--reference", $r));
+}
 foreach my $f (@_HYPOTHESES)
 {
     push(@cfg, ("--hyp", $f));
 }
+push(@cfg, ("--nb-backbones", $_NB_BACKBONES));
 
 push(@cfg, @_COSTS);
 push(@cfg, ("--shift-constraint", $_SHIFT_CONSTRAINT));
@@ -275,7 +308,7 @@ my $enc="UTF-8";
 print STDOUT "CMD : java -Xmx10G -Dfile.encoding=".$enc." -cp $_MANY edu.lium.mt.MANYbleu $_MANY_CONFIG\n";
 print STDOUT "Starting MANY system combination ...";
 print STDOUT "\n------- START LOG ----\n";
-safesystem("java -Xmx10G -Dfile.encoding=$enc -cp $_MANY edu.lium.mt.MANYbleu $_MANY_CONFIG");
+safesystem("java -Xmx30G -Dfile.encoding=$enc -cp $_MANY edu.lium.mt.MANYbleu $_MANY_CONFIG");
 print STDOUT "\n------- END LOG ----\n";
 print STDOUT " OK \n";
 
@@ -285,22 +318,6 @@ print STDOUT "MANYbleu.pl - end time is: ";
 `date`;
 
 ######################## FUNCTIONS
-sub add_id()
-{
-	my $file = $_[0];
-	open(FROM, "$file") or die "Cant open file $!\n";
-    my @lines = <FROM>;
-    close(FROM);
-	open(TO, ">$file.id") or die "Cant create file $!\n";
-	my $nbl = 0;
-	foreach my $line (@lines)
-	{
-		$line =~ s/$/([set][doc.00][$nbl])/;	
-		$nbl++;
-		print TO $line;
-	}
-	close(TO);
-}
 
 sub checkType($)
 {
@@ -317,7 +334,7 @@ sub create_MANY_config()
 
 open(MANYCFG, '>', $_MANY_CONFIG) or die "Can't create file $_MANY_CONFIG : $!"; 
 
-my ($_CONFIG_TYPE, $_OUTPUT, $_REFERENCE,
+my ($_CONFIG_TYPE, $_OUTPUT, 
 $_LM_WEIGHT, $_NULL_PEN, $_WORD_PEN,
 $_DEL_COST, $_STEM_COST, $_SYN_COST, $_INS_COST, $_SUB_COST, $_MATCH_COST, $_SHIFT_COST, 
 $_MAX_NB_TOKENS, $_NBEST_SIZE, $_NBEST_FORMAT, $_NBEST_FILE,
@@ -325,12 +342,12 @@ $_USE_CN, $_USE_WORDNET, $_USE_PARAPHRASE_DB, $_USE_STEMS, $_CASE_SENSITIVE,
 $_WORDNET, $_SHIFT_STOP_WORD_LIST, $_PARAPHRASE_DB,
 $_SHIFT_CONSTRAINT, $_TERP_PARAMS,
 $_LMSERVER_HOST, $_LMSERVER_PORT, $_LM, $_LM_ORDER, $_VOCAB,
-$_NB_SYS, $_NB_THREADS,
+$_NB_SYS, $_NB_THREADS, $_NB_BACKBONES,
 $_LOG_BASE,
 $_DEBUG_DECODE,
 $_HELP
 ) = (
-"MANY", "output.many", undef,
+"MANY", "output.many", 
 0.1, 0.3, 0.1,
 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0,
 5000, 0, "MOSES", "nbest.txt",
@@ -340,13 +357,13 @@ undef,
 undef,
 "relax", "terp.params",
 `hostname`, 1234, undef, 4, undef,
-0, undef,
+0, undef, -1,
 2.718, #natural log;  this was 1.0001 for Sphinx
 undef, 
 0
 );
 chomp $_LMSERVER_HOST;
-
+my @_REFERENCES = ();
 my @_SYS_PRIORS = ();
 my @_HYPOTHESES = ();
 
@@ -354,8 +371,9 @@ my $usage = "create_MANY_config \
 --config-type <config type>            : default is $_CONFIG_TYPE, possible values : MANY, DECODE, BLEU\
 --output <output filename>             : default is $_OUTPUT \
 --nbsys <number of systems>            : default is $_NB_SYS \
---hyp <hypothesis file>	               : repeat this param for each input hypotheses \
---reference <reference file>           : useful for computing MANYbleu \
+--hyp <hypothesis file>	               : repeat this param for each input hypothese \
+--nb-backbones <number of backbones>   : default is -1 meaning every system is considered as backbone \ 
+--reference <reference file>           : useful for computing MANYbleu, repeat this param for each reference file  \
 **** TERP PARAMETERS : \
 --deletion <deletion cost>             : default is $_DEL_COST \
 --stem <stem cost>                     : default is $_STEM_COST \
@@ -394,8 +412,9 @@ $_HELP = 1
     unless GetOptions('config-type=s' => \$_CONFIG_TYPE,
                        'output=s' => \$_OUTPUT,
                        'nbsys=i' => \$_NB_SYS,
-                       'hyp=s' => \@_HYPOTHESES,
-                       'reference=s' => \$_REFERENCE,
+                       'hyp=s@' => \@_HYPOTHESES,
+                       'nb-backbones=i' => \$_NB_BACKBONES,
+                       'reference=s@' => \@_REFERENCES,
                        'deletion=f' => \$_DEL_COST,
                        'stem=f' => \$_STEM_COST,
                        'synonym=f' => \$_SYN_COST,
@@ -553,15 +572,18 @@ if($_CONFIG_TYPE eq "MANY" || $_CONFIG_TYPE eq "BLEU")
     print MANYCFG '<property name="hypotheses" value="';
     foreach my $f (@_HYPOTHESES)
     {
-    	print MANYCFG "$f.id ";
+    	print MANYCFG "$f ";
     }
     print MANYCFG '" />'."\n";
     print MANYCFG '<property name="hyps-scores" value="';
     foreach my $f(@_HYPOTHESES)
     {
-    	print MANYCFG "$f\.sc.id ";	
+        $f =~ s/$/\.sc/;
+    	print MANYCFG "$f ";	
     }
     print MANYCFG '" />'."\n";
+
+	print MANYCFG '<property name="nb-backbones"     value="'.$_NB_BACKBONES.'"/>'."\n";
 
 	print MANYCFG '<property name="insertion"     value="'.$_INS_COST.'"/>'."\n";
 	print MANYCFG '<property name="deletion"     value="'.$_DEL_COST.'"/>'."\n";
@@ -588,7 +610,25 @@ else
     print MANYCFG '" />'."\n";
 }
 
-print MANYCFG '<property name="reference" value="'.$_REFERENCE.'.id"/>'."\n" if ($_CONFIG_TYPE eq "BLEU");
+if ($_CONFIG_TYPE eq "BLEU")
+{
+    print MANYCFG '<property name="reference" value="';
+    my $first = 1;
+    foreach my $ref(@_REFERENCES)
+    {
+        print STDERR "\nMANYbleu.pl::create_MANY_config -- NEW REF: $ref ";
+        if($first == 1)
+        {
+            $first = 0;
+        }
+        else
+        {
+            print MANYCFG " ";
+        }
+        print MANYCFG "$ref";
+    }
+    print MANYCFG '"/>'."\n";
+}
 print MANYCFG '<property name="decoder" value="decoder"/>'."\n";
 print MANYCFG '<property name="output" value="'.$_OUTPUT.'"/>'."\n";
 print MANYCFG '<property name="priors" value="'."@_SYS_PRIORS".'"/>'."\n";

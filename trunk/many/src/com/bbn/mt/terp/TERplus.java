@@ -734,7 +734,8 @@ public class TERplus implements Configurable
 				System.err.println("WARNING compute_ter : Multiple ref detected ("+refs.size()+")... only using first one");
 				for(int n=0; n<refs.size(); n++)
 				{
-					System.err.println("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
+					//System.err.println("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
+                    logger.info("\tref["+n+"] = "+TERutilities.join(" ", refs.get(n)));
 				}
 			}
 	

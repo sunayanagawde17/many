@@ -501,4 +501,7 @@ public class TERalignment {
   public int numSft = 0;
   public int numWsf = 0;
 
+
+
+
 }
