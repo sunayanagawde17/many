@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.logging.Logger;
 import com.bbn.mt.terp.TERutilities;
-import com.bbn.mt.terp.TERWordClassCost.word_class;
 import edu.cmu.sphinx.linguist.WordSequence;
 import edu.cmu.sphinx.linguist.dictionary.SimpleDictionary;
 import edu.cmu.sphinx.linguist.dictionary.Word;
@@ -226,12 +225,8 @@ public class TokenPassDecoder implements Configurable
 			networklm = (NetworkLanguageModel) ps.getComponent(PROP_LANGUAGE_MODEL_ON_SERVER);
 		}
 		maxNbTokens = ps.getInt(PROP_MAX_NB_TOKENS);
-		//lm_weight = 10.0f * ps.getFloat(PROP_LM_WEIGHT);
-		// don't multiply by 10 for mert
 		lm_weight = ps.getFloat(PROP_LM_WEIGHT);
 		null_penalty = ps.getFloat(PROP_NULL_PENALTY);
-		//length_penalty = 10.0f * ps.getFloat(PROP_LENGTH_PENALTY);
-		// don't multiply by 10 for mert
 		word_penalty = ps.getFloat(PROP_WORD_PENALTY);
 		
 		nbest_length = ps.getInt(PROP_NBEST_SIZE);
@@ -262,8 +257,6 @@ public class TokenPassDecoder implements Configurable
 			+	"\n\t - N-Best length : " + nbest_length
 			+	"\n\t - N-Best format : " + nbest_format
             +   ((useNGramModel)?"\n\t - LOCAL LM":"\n\t - LMSERVER") );
-		
-		//System.err.println("TokenPassDecoder::newProperties : DEBUG : "+DEBUG);
 	}
 
 	public String getName()
@@ -358,10 +351,10 @@ public class TokenPassDecoder implements Configurable
 					{
 						word_by_sys = new int[lat.sys_weights.length];
 					}
-					boolean itsanepsilon = false;
-					if(Graph.null_node.equals(ws)) itsanepsilon = true;
 					
-					if (pred.history == null) // this is a first link !!!
+					boolean itsanepsilon = Graph.null_node.equals(ws);
+					
+					if (pred.history == null) // this is a first link
 					{
 						if (itsanepsilon)
 						{
@@ -395,10 +388,8 @@ public class TokenPassDecoder implements Configurable
 							ns = pred.history.addWord(new Word(ws, null, true), maxHist);
 							lmns = pred.lmhistory;
 							// logger.info("... Adding "+ws+" (null_node) to the word sequence, -> "+ns.toText()+" [(3) for LM : "+lmns.toText()+" ]");
-							if (l.endNode != lat.lastNode) //the last link don't count 
+							if (l.endNode != lat.lastNode) //the last link doesn't count 
 							{
-								//nscore += logMath.linearToLog(null_penalty); // null_penalty
-								//nscore += null_penalty; // null_penalty
 								nb_nulls++;
 							}
 						}
@@ -420,23 +411,21 @@ public class TokenPassDecoder implements Configurable
 							if (useNGramModel == true)
 							{
 								lmscore = languageModel.getProbability(lmns.withoutWord(Graph.null_node));
-								// logger.info("Proba lm : "+lmscore);
+								if(DEBUG) 
+									logger.info("Proba lm : "+lmscore);
 							}
 							else
 							{
 								lmscore = networklm.getProbability(lmns.withoutWord(Graph.null_node));
-								// logger.info("Proba lmonserver : "+lmscore);
+								if(DEBUG)	
+									logger.info("Proba lmonserver : "+lmscore);
 							}
 							
-							//nscore += (lm_weight * lmscore);
 							lm_score = lm_score + lmscore;
 							
-							// nscore += logMath.linearToLog(length_penalty); // length_penalty
-							//nscore += length_penalty; // length_penalty
 							nb_words++;
 							
 							// logger.info("Link proba : "+l.posterior+" -> en log :"+logMath.linearToLog(l.posterior));
-							// nscore += logMath.linearToLog(l.posterior);
 							for (int sysid : l.sysids)
 							{
 								word_by_sys[sysid]++;
@@ -444,8 +433,6 @@ public class TokenPassDecoder implements Configurable
 						}
 					}
 
-					//Token tok = new Token(nscore, pred, l.endNode, ns, lmns, lm_score, nb_words, nb_nulls, word_by_sys);
-					
 					Token tok = new Token(pred, l.endNode, ns, lmns, lm_score, nb_words, nb_nulls, word_by_sys);
 					nscore = setTokenScore(tok, lambdas);
 					if (nscore > maxScore)
@@ -463,30 +450,12 @@ public class TokenPassDecoder implements Configurable
 					}
 				}
 			}
-			// logger.info("pruning tokens");
-			// pruning tokens can be done on nthe number of tokens or on a prob
-			// threshold
+			// pruning tokens can be done on the number of tokens or on a prob threshold
 			if (tokens[cible].size() > maxNbTokens)
 			{
-				/*
-				 * System.err.println(" BEFORE pruning ... :"); for(int r=0;
-				 * r<tokens[cible].size() && r<5; r++) {
-				 * System.err.print(" "+tokens[cible].get(r).score); }
-				 * System.err.println(" --------------- ");
-				 * 
-				 * logger.info("size before pruning " + tokens[cible].size());
-				 */
+				// taking only maxNbTokens best tokens
 				Collections.sort(tokens[cible], Collections.reverseOrder());
 				tokens[cible].removeRange(maxNbTokens, tokens[cible].size()); 
-				// taking only maxNbTokens best tokens
-				/*
-				 * logger.info("size after pruning " + tokens[cible].size());
-				 * 
-				 * System.err.println(" AFTER pruning ... :"); for(int r=0;
-				 * r<tokens[cible].size() && r<5; r++) {
-				 * System.err.print(" "+tokens[cible].get(r).score); }
-				 * System.err.println(" --------------- ");
-				 */
 			}
 			normalizeToken(tokens[cible], maxScore);
 
@@ -663,25 +632,5 @@ public class TokenPassDecoder implements Configurable
 		for (Token t : lesTokens)
 			t.score -= maxi;
 	}
-
-	/*
-	 * public void testLM() { try { lm.allocate(); } catch(IOException ioe) {
-	 * ioe.printStackTrace(); }
-	 * System.err.println("MaxDepth : "+lm.getMaxDepth());
-	 * 
-	 * //WordSequence ws = WordSequence.getWordSequence(new Word("a", null,
-	 * false)); Word[] words = new Word[3]; words[0] = new Word("a", null,
-	 * false); words[1] = new Word("red", null, false); words[2] = new
-	 * Word("car", null, false);
-	 * 
-	 * WordSequence ws = WordSequence.getWordSequence(words);
-	 * 
-	 * System.err.println("The wordSequence : "+ws.toText());
-	 * 
-	 * float proba = lm.getProbability(ws);
-	 * System.err.println("Prob of "+ws.toText()+" is "+proba);
-	 * 
-	 * lm.deallocate(); }
-	 */
 
 }

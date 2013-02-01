@@ -117,12 +117,18 @@ public class MANYbleu implements Configurable
 	/** The property that defines the number of threads used */
 	@S4Integer(defaultValue = 0)
 	public final static String PROP_MULTITHREADED = "multithread";
+	
+        /** The property that defines the number of backbones used, -1 means generate all backbones */
+	@S4Integer(defaultValue = -1)
+	public final static String PROP_NB_BACKBONES = "nb-backbones";
 
 	private String outfile;
 	private String terpParamsFile;
-	private String reference;
+	private String references;
+	private String[] refs_names;
 	private String hypotheses;
 	private String hypotheses_scores;
+	private int nb_backbones, nb_bb;
 	//private String terp_costs;
 	private float ins, del, sub, match, shift, stem, syn;
 	private String priors_str;
@@ -187,9 +193,20 @@ public class MANYbleu implements Configurable
 	private void allocate()
 	{
 		allocated = true;
+		refs_names = references.split("\\s+");
 		hyps = hypotheses.split("\\s+");
 		hyps_scores = hypotheses_scores.split("\\s+");
-		//costs = terp_costs.split("\\s+");
+                
+                //how many backbones ?
+                nb_bb = nb_backbones;
+                if(nb_backbones == -1) { nb_bb = hyps.length; }
+                else if(nb_backbones < 0 || nb_backbones > hyps.length)
+                {
+                    System.err.println("MANYbleu::run: unrealistic number of backbones requested ("+nb_bb+") ... exiting! ");
+                    System.exit(0);
+                }
+	
+                //costs = terp_costs.split("\\s+");
 		costs = new float[7];
 		costs[0] = del;
 		costs[1] = stem;
@@ -210,7 +227,12 @@ public class MANYbleu implements Configurable
 		}
 		refs = new TreeMap<TERid, List<String>>();
 		refs_tok = new TreeMap<TERid, List<String[]>>();
-		TERinput.load_file(reference, refs);
+		
+		for (String ref : refs_names)
+		{
+			TERinput.load_file(ref, refs);
+		}
+		
 		for(Entry<TERid, List<String>> entry : refs.entrySet())
 		{
 			ArrayList<String[]> rlst = new ArrayList<String[]>();
@@ -231,7 +253,7 @@ public class MANYbleu implements Configurable
 
 	public void run()
 	{
-		BLEUcounts[] bleu_scores = new BLEUcounts[hyps.length];
+		BLEUcounts[] bleu_scores = new BLEUcounts[nb_bb];
 		ArrayList<String> lst = null;
 		ArrayList<String> lst_sc = null;
 		String backbone = null;
@@ -240,7 +262,11 @@ public class MANYbleu implements Configurable
 
 		//preparing TERp tasks
 		ArrayList<TERtask> tasks = new ArrayList<TERtask>();
-		for (int i = 0; i < hyps.length; i++)
+
+
+                // TODO: select backbone with MBR
+                // for now, we can consider that systems are well ordered
+		for (int i = 0; i < nb_bb; i++)
 		{
 			// 1. Generate CNs with system i as backbone for each sentence
 			// 1.1 Init variables
@@ -296,28 +322,35 @@ public class MANYbleu implements Configurable
 			ArrayList<BLEUtask> bleutasks = new ArrayList<BLEUtask>();
 			for (int i = 0; i < results.size(); ++i)
 			{
-				TERoutput output = null;
-				// print this CN in a file named OUTPFX.cn.0, OUTPFX.cn.1 ...
-				try
-				{
-					output = results.get(i).get();
-				}
-				catch (InterruptedException ie)
-				{
-					System.err.println("The task " + i + " had a problem : " + ie.getMessage());
-					ie.printStackTrace();
-					System.exit(-1);
-				}
-				catch (ExecutionException ee)
-				{
-					System.err.println("The task " + i + " had a problem : " + ee.getMessage());
-					ee.printStackTrace();
-					System.exit(-1);
-				}
+                            TERoutput output = null;
+                            // print this CN in a file named OUTPFX.cn.0, OUTPFX.cn.1 ...
+                            try
+                            {
+                                    output = results.get(i).get();
+                            }
+                            catch (InterruptedException ie)
+                            {
+                                    System.err.println("The task " + i + " had a problem : " + ie.getMessage());
+                                    ie.printStackTrace();
+                                    System.exit(-1);
+                            }
+                            catch (ExecutionException ee)
+                            {
+                                    System.err.println("The task " + i + " had a problem : " + ee.getMessage());
+                                    ee.printStackTrace();
+                                    System.exit(-1);
+                            }
 
-				// 2. Calculate BLEU between theref and CN
-				logger.info("run : adding BLEU for ref eval with system " + i + " as backbone ...");
-				bleutasks.add(new BLEUtask(i, output, refs_tok));
+                            // 2. Calculate BLEU between theref and CN if ref available
+                            if(refs_tok.isEmpty() == false)
+                            {
+                                                logger.info("run : adding BLEU for ref eval with system " + i + " as backbone ...");
+                                                bleutasks.add(new BLEUtask(i, output, refs_tok));
+                            }
+                            else
+                            {
+                                                logger.info("run : BLEU for ref eval not run because no ref available ...");
+                            }
 			}
 			// launch threads
 			ExecutorService ref_executor = Executors.newFixedThreadPool(nb_threads);
@@ -336,27 +369,27 @@ public class MANYbleu implements Configurable
 
 			for (int i = 0; i < results_ref.size(); ++i)
 			{
-				try
-				{
-					bleu_scores[i] = results_ref.get(i).get();
-				}
-				catch (InterruptedException ie)
-				{
-					System.err.println("The task " + i + " had a problem : " + ie.getMessage());
-					ie.printStackTrace();
-					System.exit(-1);
-				}
-				catch (ExecutionException ee)
-				{
-					System.err.println("The task " + i + " had a problem : " + ee.getMessage());
-					ee.printStackTrace();
-					System.exit(-1);
-				}
+                            try
+                            {
+                                    bleu_scores[i] = results_ref.get(i).get();
+                            }
+                            catch (InterruptedException ie)
+                            {
+                                    System.err.println("The task " + i + " had a problem : " + ie.getMessage());
+                                    ie.printStackTrace();
+                                    System.exit(-1);
+                            }
+                            catch (ExecutionException ee)
+                            {
+                                    System.err.println("The task " + i + " had a problem : " + ee.getMessage());
+                                    ee.printStackTrace();
+                                    System.exit(-1);
+                            }
 			}
 		}
 		else // no multithreading
 		{
-			for (int i = 0; i < hyps.length; ++i) // foreach backbone
+			for (int i = 0; i < nb_bb; ++i) // foreach backbone
 			{
 				logger.info("run : launching TERp for system " + i + " as backbone ...");
 				
@@ -378,17 +411,24 @@ public class MANYbleu implements Configurable
 				// else { logger.info("we have an output ...");}
 
 				// 2. Calculate pseudo-BLEU between the ref and CN
-				logger.info("run : launching BLEU for ref eval with system " + i + " as backbone ...");
-				try
-				{
-					bleu_scores[i] = new BLEUtask(i, output, refs_tok).call();
-				}
-				catch (Exception e)
-				{
-					System.err.println("ERROR : MANYbleu::run : ");
-					e.printStackTrace();
-					System.exit(0);
-				}
+                                if(refs_tok.isEmpty() == false)
+                                {
+                                    logger.info("run : launching BLEU for ref eval with system " + i + " as backbone ...");
+                                    try
+                                    {
+                                        bleu_scores[i] = new BLEUtask(i, output, refs_tok).call();
+                                    }
+                                    catch (Exception e)
+                                    {
+                                        System.err.println("ERROR : MANYbleu::run : ");
+                                        e.printStackTrace();
+                                        System.exit(0);
+                                    }
+                                }
+                                else
+                                {
+                                                    logger.info("run : BLEU for ref eval not run because no ref available ...");
+                                }
 			}
 		}
 		// 3. Output scores according to aggregation function (set by 'method'
@@ -406,74 +446,81 @@ public class MANYbleu implements Configurable
 			}
 		}
 
-		logger.info("run : Calculating final score for each sentence (according to 'method' parameter) ...");
-		double bleuPrecScore = 0.0, bleuRecallScore = 0.0;
-		////BLEUcn.BLEUcounts bleu_counts = new BLEUcn(-1).new BLEUcounts();
-		double bpSum = 0, brSum = 0, bp, br;
-		for (int i = 0; i < bleu_scores.length; i++) // for each backbone
-		{
-			if (DEBUG)
-				System.err.println("Backbone #" + i);
+                if(refs_tok.isEmpty() == false)
+                {
+                    logger.info("run : Calculating final score for each sentence (according to 'method' parameter) ...");
+                    double bleuPrecScore = 0.0, bleuRecallScore = 0.0;
+                    ////BLEUcn.BLEUcounts bleu_counts = new BLEUcn(-1).new BLEUcounts();
+                    double bpSum = 0, brSum = 0, bp, br;
+                    for (int i = 0; i < bleu_scores.length; i++) // for each backbone
+                    {
+                        if (DEBUG)
+                            System.err.println("Backbone #" + i);
 
-			/*//////sum up everything
-			////bleu_counts.closest_ref_length += bleu_scores[i].closest_ref_length;  
-			////bleu_counts.translation_length += bleu_scores[i].translation_length;
-			
-			////for(int b=0; b<BLEUcn.max_ngram_size; b++)
-			////{
-				////bleu_counts.ngram_counts[b] += bleu_scores[i].ngram_counts[b];
-				////bleu_counts.ngram_counts_ref[b] += bleu_scores[i].ngram_counts_ref[b];
-				////bleu_counts.ngram_counts_clip[b] += bleu_scores[i].ngram_counts_clip[b];
-			////}*/
-			bp = bleu_scores[i].computeBLEU();
-			br = bleu_scores[i].computeRecall();
-			
-			if(method.equals("MAX"))
-			{	
-				if(bleuPrecScore < bp) bleuPrecScore = bp;
-				if(bleuRecallScore < br) bleuRecallScore = br;
-				
-			}
-			else if(method.equals("MEAN") || method.equals("SUM"))
-			{
-				bpSum += bleu_scores[i].computeBLEU();
-				brSum += bleu_scores[i].computeRecall();
-			}
-		}
-		
-		if(method.equals("MEAN"))
-		{
-			bleuPrecScore = bpSum / bleu_scores.length;
-			bleuRecallScore = brSum / bleu_scores.length;
-		}
-		////bleuPrecScore = bleu_counts.computeBLEU();
-		////bleuRecallScore = bleu_counts.computeRecall();
-		
-		if (DEBUG)
-			System.err.println(" score : " + bleuPrecScore);
-		
-		try
-		{
-			bw.write(""+bleuPrecScore+" "+bleuRecallScore);
-			//bw.newLine();
-			bw.close();
-		}
-		catch (IOException ioe)
-		{
-			ioe.printStackTrace();
-			System.exit(-1);
-		}
-		
-		/*try
-		{
-			bw.close();
-		}
-		catch (IOException e)
-		{
-			e.printStackTrace();
-		}*/
+                        /*//////sum up everything
+                        ////bleu_counts.closest_ref_length += bleu_scores[i].closest_ref_length;  
+                        ////bleu_counts.translation_length += bleu_scores[i].translation_length;
+                        
+                        ////for(int b=0; b<BLEUcn.max_ngram_size; b++)
+                        ////{
+                            ////bleu_counts.ngram_counts[b] += bleu_scores[i].ngram_counts[b];
+                            ////bleu_counts.ngram_counts_ref[b] += bleu_scores[i].ngram_counts_ref[b];
+                            ////bleu_counts.ngram_counts_clip[b] += bleu_scores[i].ngram_counts_clip[b];
+                        ////}*/
+                        bp = bleu_scores[i].computeBLEU();
+                        br = bleu_scores[i].computeRecall();
+                        
+                        if(method.equals("MAX"))
+                        {	
+                            if(bleuPrecScore < bp) bleuPrecScore = bp;
+                            if(bleuRecallScore < br) bleuRecallScore = br;
+                            
+                        }
+                        else if(method.equals("MEAN") || method.equals("SUM"))
+                        {
+                            bpSum += bleu_scores[i].computeBLEU();
+                            brSum += bleu_scores[i].computeRecall();
+                        }
+                    }
+                    
+                    if(method.equals("MEAN"))
+                    {
+                        bleuPrecScore = bpSum / bleu_scores.length;
+                        bleuRecallScore = brSum / bleu_scores.length;
+                    }
+                    ////bleuPrecScore = bleu_counts.computeBLEU();
+                    ////bleuRecallScore = bleu_counts.computeRecall();
+                    
+                    if (DEBUG)
+                        System.err.println(" score : " + bleuPrecScore);
+                        
+                    try
+                    {
+                        bw.write(""+bleuPrecScore+" "+bleuRecallScore);
+                        //bw.newLine();
+                        bw.close();
+                    }
+                    catch (IOException ioe)
+                    {
+                        ioe.printStackTrace();
+                        System.exit(-1);
+                    }
+                }
+                else
+                {
+                    try
+                    {
+                        bw.write("NA NA");
+                        //bw.newLine();
+                        bw.close();
+                    }
+                    catch (IOException ioe)
+                    {
+                        ioe.printStackTrace();
+                        System.exit(-1);
+                    }
+                }
 	}
-
 	
 	@Override
 	public void newProperties(PropertySheet ps) throws PropertyException
@@ -482,7 +529,7 @@ public class MANYbleu implements Configurable
 
 		logger = ps.getLogger();
 		// Files
-		reference = ps.getString(PROP_REFERENCE_FILE);
+		references = ps.getString(PROP_REFERENCE_FILE);
 		hypotheses = ps.getString(PROP_HYPOTHESES_FILES);
 		hypotheses_scores = ps.getString(PROP_HYPS_SCORES_FILES);
 		outfile = ps.getString(PROP_OUTPUT_FILE);
@@ -506,6 +553,7 @@ public class MANYbleu implements Configurable
 		method = ps.getString(PROP_METHOD);
 		priors_str = ps.getString(PROP_PRIORS);
 		nb_threads = ps.getInt(PROP_MULTITHREADED);
+                nb_backbones = ps.getInt(PROP_NB_BACKBONES);
 	}
 
 	static String[] usage_ar =

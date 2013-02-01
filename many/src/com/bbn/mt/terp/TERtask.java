@@ -29,7 +29,10 @@ public class TERtask implements Callable<TERoutput>
 		terp.allocate();
 		TERoutput output = terp.run();
 		if(output != null)
+		{
 			output.output_full_cns(outfile);
+			output.output_cn(outfile+".merged");
+		}
 		terp = null;
 		output.setParams(null);
 		return output;

@@ -23,6 +23,7 @@ my $_CONFIG_FILE=undef;
 my @_HYPOTHESES=();
 my $_NB_SYS=undef;
 my $_NB_THREADS=undef;
+my $_PRIORS_AS_CONFIDENCE="true";
 
 # LM parameters
 #my $_LM_SERVER_HOST=`hostname`; chomp $_LM_SERVER_HOST;
@@ -66,6 +67,7 @@ my %_CONFIG = (
 'word-penalty' => \$_WORD_PEN, 
 'multithread' => \$_NB_THREADS,
 'priors' => \@_PRIORS, 
+'priors-as-confidence' => \$_PRIORS_AS_CONFIDENCE, 
 'max-nb-tokens' => \$_MAX_NB_TOKENS, 
 'nbest-size' => \$_NBEST_SIZE, 
 'nbest-format' => \$_NBEST_FORMAT, 
@@ -96,6 +98,7 @@ my $usage = "MANYdecode.pl \
 --word-penalty <word penalty>        : default is $_WORD_PEN \
 --multithread <number of threads> \
 --priors <systems priors> \
+--priors-as-confidence               : use priors as word confidence score \
 --max-nb-tokens <max number of tokens for decoding> : default is $_MAX_NB_TOKENS \
 --nbest-size <size of the nbest list>        : default is $_NBEST_SIZE \
 --nbest-format <format of the nbest list>    : default is $_NBEST_FORMAT, possible values are MOSES or BTEC \
@@ -109,14 +112,14 @@ my $usage = "MANYdecode.pl \
 ######################## Parsing parameters with GetOptions
 $_HELP = 1 unless GetOptions(\%_CONFIG, 'many=s', 'config=s', 'working-dir=s', 'output=s', 'hyp=s@',
 'lm=s', 'lm-server-host=s', 'lm-server-port=i', 'lm-order=i', 'vocab=s', 'use-local-lm', 
-'lm-weight=f', 'null-penalty=f', 'word-penalty=f', 'multithread=i', 'priors=f{,}', 'max-nb-tokens=i', 'nbest-size=i', 'nbest-format=s', 'nbest-file=s', 
+'lm-weight=f', 'null-penalty=f', 'word-penalty=f', 'multithread=i', 'priors=f{,}', 'priors-as-confidence=s', 'max-nb-tokens=i', 'nbest-size=i', 'nbest-format=s', 'nbest-file=s', 
 'log-base=f', 'debug-decode', 'help');
 
 ######################## PREPARE DATA
 
 if(defined $_CONFIG_FILE)
 {
-	print STDOUT "loading config file : $_CONFIG_FILE\n";
+	print STDOUT "MANYdecode: loading config file : $_CONFIG_FILE\n";
 	scan_many_config($_CONFIG_FILE);
 	#dump_config(%_CONFIG);
 }
@@ -261,7 +264,9 @@ else #lm serveur
     push(@cfg, ("--lm-order", $_LM_ORDER));
 }
 
-push(@cfg, ("--lm-weight", $_LM_WEIGHT, "--null-penalty", $_NULL_PEN, "--word-penalty", $_WORD_PEN, "--priors", @_PRIORS));
+push(@cfg, ("--lm-weight", $_LM_WEIGHT, "--null-penalty", $_NULL_PEN, "--word-penalty", $_WORD_PEN));
+push(@cfg, ("--priors", @_PRIORS));
+push(@cfg, ("--priors-as-confidence", $_PRIORS_AS_CONFIDENCE));
 
 push(@cfg, ("--max-nb-tokens", $_MAX_NB_TOKENS)) if(defined($_MAX_NB_TOKENS));
 push(@cfg, ("--nbest-size", $_NBEST_SIZE)) if(defined($_NBEST_SIZE));
@@ -271,9 +276,9 @@ push(@cfg, ("--log-base", $_LOG_BASE)) if(defined($_LOG_BASE));
 push(@cfg, ("--multithread", $_NB_THREADS)) if(defined($_NB_THREADS));
 push(@cfg, "--debug-decode") if(defined($_DEBUG_DECODE) and $_DEBUG_DECODE!="false");
 
-#print STDERR "------------------------------\nCONFIG : ";
-#print STDERR join(" ", @cfg);
-#print STDERR "\n------------------------------\n";
+print STDERR "------------------------------\nMANYdecode CONFIG : ";
+print STDERR join(" ", @cfg);
+print STDERR "\n------------------------------\n";
 
 create_MANY_config(@cfg);
 print STDOUT " done !\n";
@@ -363,6 +368,7 @@ open(MANYCFG, '>', $_MANY_CONFIG) or die "Can't create file $_MANY_CONFIG : $!";
 my ($_CONFIG_TYPE, $_OUTPUT, $_REFERENCE,
 $_LM_WEIGHT, $_NULL_PEN, $_WORD_PEN,
 $_DEL_COST, $_STEM_COST, $_SYN_COST, $_INS_COST, $_SUB_COST, $_MATCH_COST, $_SHIFT_COST, 
+$_PRIORS_AS_CONFIDENCE,
 $_MAX_NB_TOKENS, $_NBEST_SIZE, $_NBEST_FORMAT, $_NBEST_FILE,
 $_USE_CN, $_USE_WORDNET, $_USE_PARAPHRASE_DB, $_USE_STEMS, $_CASE_SENSITIVE,
 $_WORDNET, $_SHIFT_STOP_WORD_LIST, $_PARAPHRASE_DB,
@@ -376,6 +382,7 @@ $_HELP
 "MANY", "output.many", undef,
 0.1, 0.3, 0.1,
 1.0, 1.0, 1.0, 1.0, 1.0, 0.0, 1.0,
+"true",
 5000, 0, "MOSES", "nbest.txt",
 "true", undef, undef, "true", "true",
 undef,
@@ -423,6 +430,7 @@ my $usage = "create_MANY_config \
 --word-penalty <word penalty>          : default is $_WORD_PEN \
 --multithread <number of thread> \
 --priors <systems priors>              : default is @_SYS_PRIORS \
+--priors-as-confidence                 : default is $_PRIORS_AS_CONFIDENCE \
 --max-nb-tokens <max number of tokens> : default is $_MAX_NB_TOKENS \
 --nbest-size <size of the nbest list>  : default is $_NBEST_SIZE \
 --nbest-format <format of the nbest list>  : default is $_NBEST_FORMAT, possible values are MOSES or BTEC \
@@ -459,6 +467,7 @@ $_HELP = 1
                        'null-penalty=f' => \$_NULL_PEN,
                        'word-penalty=f' => \$_WORD_PEN,
                        'multithread=i' => \$_NB_THREADS,
+                       'priors-as-confidence=s' => \$_PRIORS_AS_CONFIDENCE,
                        'priors=f{,}' => \@_SYS_PRIORS,
                        'max-nb-tokens=i' => \$_MAX_NB_TOKENS,
                        'nbest-size=i' => \$_NBEST_SIZE,
@@ -636,6 +645,7 @@ print MANYCFG '<property name="reference" value="'.$_REFERENCE.'.id"/>'."\n" if 
 print MANYCFG '<property name="decoder" value="decoder"/>'."\n";
 print MANYCFG '<property name="output" value="'.$_OUTPUT.'"/>'."\n";
 print MANYCFG '<property name="priors" value="'."@_SYS_PRIORS".'"/>'."\n";
+print MANYCFG '<property name="priors-as-confidence" value="'."$_PRIORS_AS_CONFIDENCE".'"/>'."\n";
 
 print MANYCFG '<property name="multithread"     value="'.$_NB_THREADS.'"/>'."\n" if defined($_NB_THREADS);
 print MANYCFG '</component>'."\n";

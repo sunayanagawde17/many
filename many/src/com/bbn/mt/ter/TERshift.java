@@ -2,7 +2,7 @@ package com.bbn.mt.ter;
 
 /*
                                                                 
-Copyright© 2006 by BBN Technologies and University of Maryland (UMD)
+Copyright 2006 by BBN Technologies and University of Maryland (UMD)
 
 BBN and UMD grant a nonexclusive, source code, royalty-free right to
 use this Software known as Translation Error Rate COMpute (the

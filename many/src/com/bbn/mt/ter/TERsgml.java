@@ -36,26 +36,29 @@ the Software in your possession.
 Matthew Snover (snover@cs.umd.edu)                           
 */
 
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Calendar;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.regex.*;
-import java.io.*;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.parsers.DocumentBuilder;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
-import org.xml.sax.SAXParseException;
 import org.xml.sax.SAXException;
-import javax.xml.transform.TransformerConfigurationException;
-import javax.xml.transform.TransformerException;
+import org.xml.sax.SAXParseException;
 
 public class TERsgml {
   public static enum TAGNAME {

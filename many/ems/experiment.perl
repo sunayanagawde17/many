@@ -6,6 +6,7 @@ use strict;
 use Getopt::Long "GetOptions";
 use FindBin qw($Bin);
 use File::Basename;
+use Cwd;
 
 my $host = `hostname`; chop($host);
 print STDERR "STARTING UP AS PROCESS $$ ON $host AT ".`date`;
@@ -37,7 +38,9 @@ die("experiment.perl -config config-file [--exec] [--continue run_number] [--no-
 			'max-active=i' => \$MAX_ACTIVE,
 			'no-graph' => \$NO_GRAPH,
             'redo-all' => \$REDO_ALL);
-if (! -e "steps") { `mkdir -p steps`; }
+#if (! -e "steps") { `mkdir -p steps`; }
+
+$CONFIG_FILE = cwd()."/".$CONFIG_FILE unless ($CONFIG_FILE =~ /^\//);
 
 die("error: could not find config file") 
     unless ($CONFIG_FILE && -e $CONFIG_FILE) ||
@@ -70,8 +73,10 @@ print "LOAD CONFIG...\n";
 my (@MODULE_LIST,  # list of modules (included sets) used
     %CONFIG);      # all (expanded) parameter settings from configuration file
 &read_config();
-print "working directory is ".&check_and_get("GENERAL:working-dir")."\n";
-chdir(&check_and_get("GENERAL:working-dir"));
+my $WORKING_DIR = &check_and_get("GENERAL:working-dir");
+print "working directory is $WORKING_DIR \n";
+`mkdir -p $WORKING_DIR` unless (-e $WORKING_DIR);
+chdir($WORKING_DIR);
 
 my $VERSION = 0;     # experiment number
 $VERSION = $CONTINUE if $CONTINUE;
@@ -97,7 +102,7 @@ my @DEPENDENCY;
 print "\nCHECKING IF OLD STEPS ARE RE-USABLE\n";
 my @RE_USE;      # maps re-usable steps to older versions
 my %RECURSIVE_RE_USE; # stores links from .INFO files that record prior re-use
-&find_re_use();
+&find_re_use() unless $REDO_ALL;
 
 print "\nDEFINE STEPS (run with -exec if everything ok)\n" unless $EXECUTE || $CONTINUE;
 &define_step("all") unless $EXECUTE || $CONTINUE;
@@ -128,7 +133,7 @@ sub init_agenda_graph() {
     `convert $graph_file.ps $graph_file.png`;
 
     if (!$NO_GRAPH && !fork) {
-	# use ghostview by default, it it is installed
+	# use ghostview by default, if it is installed
 	if (`which gv 2> /dev/null`) {
 	  `gv -watch $graph_file.ps`;
         }
@@ -348,6 +353,7 @@ sub read_config {
     $error = 0;
     foreach my $parameter (keys %CONFIG) {
 	foreach (@{$CONFIG{$parameter}}) {	    
+        next if $parameter =~ /GENERAL:working-dir/;
 	    next if $parameter =~ /temp-dir/;
 	    next if (!/^\// || -e);    # ok if not file, or exists
 	    my $file = $_;	    
@@ -886,52 +892,52 @@ sub define_step {
 	next if $RE_USE[$i];
 	next if defined($PASS{$i});
 	next if &define_template($i);
-        if ($DO_STEP[$i] =~ /^CORPUS:(.+):factorize$/) {
-            &define_corpus_factorize($i);
-        }	
+    if ($DO_STEP[$i] =~ /^CORPUS:(.+):factorize$/) {
+        &define_corpus_factorize($i);
+    }	
 	elsif ($DO_STEP[$i] eq 'SPLITTER:train') {
 	    &define_splitter_train($i);
 	}	
-        elsif ($DO_STEP[$i] =~ /^LM:(.+):factorize$/) {
-            &define_lm_factorize($i,$1);
-        }
+    elsif ($DO_STEP[$i] =~ /^LM:(.+):factorize$/) {
+       &define_lm_factorize($i,$1);
+    }
 	elsif ($DO_STEP[$i] =~ /^LM:(.+):randomize$/ || 
-	       $DO_STEP[$i] eq 'INTERPOLATED-LM:randomize') {
-            &define_lm_randomize($i,$1);
-        }
+       $DO_STEP[$i] eq 'INTERPOLATED-LM:randomize') {
+        &define_lm_randomize($i,$1);
+    }
 	elsif ($DO_STEP[$i] =~ /^LM:(.+):train-randomized$/) {
 	    &define_lm_train_randomized($i,$1);
 	}
-        elsif ($DO_STEP[$i] eq 'TRAINING:prepare-data') {
-            &define_training_prepare_data($i);
-        }
-        elsif ($DO_STEP[$i] eq 'TRAINING:run-giza') {
-            &define_training_run_giza($i);
-        }
-        elsif ($DO_STEP[$i] eq 'TRAINING:run-giza-inverse') {
-            &define_training_run_giza_inverse($i);
-        }
-        elsif ($DO_STEP[$i] eq 'TRAINING:symmetrize-giza') {
-            &define_training_symmetrize_giza($i);
-        }
+    elsif ($DO_STEP[$i] eq 'TRAINING:prepare-data') {
+        &define_training_prepare_data($i);
+    }
+    elsif ($DO_STEP[$i] eq 'TRAINING:run-giza') {
+        &define_training_run_giza($i);
+    }
+    elsif ($DO_STEP[$i] eq 'TRAINING:run-giza-inverse') {
+        &define_training_run_giza_inverse($i);
+    }
+    elsif ($DO_STEP[$i] eq 'TRAINING:symmetrize-giza') {
+        &define_training_symmetrize_giza($i);
+    }
 	elsif ($DO_STEP[$i] eq 'TRAINING:build-biconcor') {
-            &define_training_build_biconcor($i);
+        &define_training_build_biconcor($i);
 	}
-        elsif ($DO_STEP[$i] eq 'TRAINING:build-lex-trans') {
-            &define_training_build_lex_trans($i);
-        }
-        elsif ($DO_STEP[$i] eq 'TRAINING:extract-phrases') {
-            &define_training_extract_phrases($i);
-        }
-        elsif ($DO_STEP[$i] eq 'TRAINING:build-reordering') {
-            &define_training_build_reordering($i);
-        }
+    elsif ($DO_STEP[$i] eq 'TRAINING:build-lex-trans') {
+        &define_training_build_lex_trans($i);
+    }
+    elsif ($DO_STEP[$i] eq 'TRAINING:extract-phrases') {
+        &define_training_extract_phrases($i);
+    }
+    elsif ($DO_STEP[$i] eq 'TRAINING:build-reordering') {
+        &define_training_build_reordering($i);
+    }
 	elsif ($DO_STEP[$i] eq 'TRAINING:build-ttable') {
 	    &define_training_build_ttable($i);
-        }
+    }
 	elsif ($DO_STEP[$i] eq 'TRAINING:build-generation') {
-            &define_training_build_generation($i);
-        }
+        &define_training_build_generation($i);
+    }
 	elsif ($DO_STEP[$i] eq 'TRAINING:create-config' || $DO_STEP[$i] eq 'TRAINING:create-config-interpolated-lm') {
 	    &define_training_create_config($i);
 	}
@@ -939,8 +945,14 @@ sub define_step {
 	    &define_training_interpolated_lm_interpolate($i);
 	}
 	elsif ($DO_STEP[$i] eq 'TUNING:factorize-input') {
-            &define_tuningevaluation_factorize($i);
-        }	
+        &define_tuningevaluation_factorize($i);
+    }	
+ 	elsif ($DO_STEP[$i] eq 'TUNING:prepare-inputs') {
+	    &define_prepare_inputs($i);
+	} 
+ 	elsif ($DO_STEP[$i] eq 'TUNING:prepare-references') {
+	    &define_prepare_references($i);
+	} 
  	elsif ($DO_STEP[$i] eq 'TUNING:tune-align') {
 	    &define_tuning_tune_align($i);
 	} 
@@ -953,8 +965,20 @@ sub define_step {
     elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):factorize-input$/) {
         &define_tuningevaluation_factorize($i);
     }	
+ 	elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):prepare-inputs$/) {
+	    &define_prepare_inputs($i);
+	} 
+ 	elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):prepare-references$/) {
+	    &define_prepare_references($i);
+	} 
+	elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):align$/) {
+	    &define_evaluation_align($1,$i);
+    }
 	elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):decode$/) {
 	    &define_evaluation_decode($1,$i);
+	}
+	elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):score-rb$/) {
+	    &define_evaluation_score_rb($1,$i);
 	}
 	elsif ($DO_STEP[$i] =~ /^EVALUATION:(.+):analysis$/) {
 	    &define_evaluation_analysis($1,$i);
@@ -985,8 +1009,12 @@ sub define_step {
 # including checks, if needed to be executed, waiting for completion, and error detection
 
 sub execute_steps {
-    for(my $i=0;$i<=$#DO_STEP;$i++) {
-	$DONE{$i}++ if $RE_USE[$i];
+    
+    if(!$REDO_ALL)
+    {
+        for(my $i=0;$i<=$#DO_STEP;$i++) {
+	    $DONE{$i}++ if $RE_USE[$i];
+        }
     }
 
     my $active = 0;
@@ -1530,28 +1558,89 @@ sub factorize_one_language {
     return $cmd . "$scripts/training/combine_factors.pl $list > $outfile\n";
 }
 
+sub define_prepare_inputs {
+
+    my ($step_id) = @_;
+    my ($output, $input) = &get_output_and_input($step_id);
+    print STDERR "PREPARE INPUTS: params: $input and $output \n\n" if $VERBOSE;
+
+    my $dir = &check_and_get("GENERAL:working-dir");
+    my $sdir = &check_and_get("GENERAL:many-script-dir");
+
+    my $in = safebackticks(("find", "$input*tok", "-maxdepth", "0", "-follow"));
+    my @inputs = split(/\n/, $in);
+    chomp(@inputs);
+    print STDERR "PREPARE INPUTS: inputs: ".join(" ",@inputs)."\n\n" if $VERBOSE;
+
+    my $cmd = "\nmkdir -p $output";
+    foreach my $h (@inputs)
+    {
+        my $basename = basename($h); 
+        $cmd .= "\n$sdir/prepare-input.pl $h $output --score 0.1";  
+    }
+    &create_step($step_id, $cmd);
+}
+
+sub define_prepare_references {
+
+    my ($step_id) = @_;
+    my ($output, $ref) = &get_output_and_input($step_id);
+    print STDERR "PREPARE REF: params: $ref and $output \n\n" if $VERBOSE;
+
+    my $dir = &check_and_get("GENERAL:working-dir");
+    my $sdir = &check_and_get("GENERAL:many-script-dir");
+
+    my $reff = safebackticks(("find", "$ref*.[0-9]", "-maxdepth", "0", "-follow"));
+    my @references = split(/\n/, $reff);
+    chomp(@references);
+    print STDERR "PREPARE REF: references: ".join(" ",@references)."\n\n" if $VERBOSE;
+
+    my $cmd = "\nmkdir -p $output";
+    foreach my $r (@references)
+    {
+        my $basename = basename($r); 
+        $cmd .= "\n$sdir/prepare-input.pl $r $output";  
+    }
+    &create_step($step_id, $cmd);
+}
+
 sub define_tuning_tune_align {
     my ($step_id) = @_;
+    my ($output, $input, $reference) = &get_output_and_input($step_id);
+
     my $dir = &check_and_get("GENERAL:working-dir");
     my $many = &check_and_get("GENERAL:many");
     my $config_default_name = &check_and_get("GENERAL:config-default-name");
     my $max_threads = &check_and_get("GENERAL:max-threads");
+    my $nb_backbones = &check_and_get("GENERAL:nb-backbones");
     my $log_base = &check_and_get("GENERAL:log-base");
 
-    my ($output, $input, $reference) = &get_output_and_input($step_id);
+    my $corpus = &get("GENERAL:corpustune");
+
     my $tuning_script = &check_and_get("TUNING:tuning-align-script");
     my $tuning_align_dir = &check_and_get("TUNING:tuning-align-dir");
     my $scripts = &check_backoff_and_get("TUNING:moses-script-dir");
-    my $wordnet = &check_and_get("GENERAL:wordnet");
-    my $paraphrases = &check_and_get("GENERAL:paraphrases"); 
-    my $stop_list = &check_and_get("GENERAL:shift-word-stop-list"); 
+
+
     my $shift_constraint = &check_and_get("GENERAL:shift-constraint");
+    my ($wordnet, $paraphrases, $stop_list) = (undef, undef, undef);
+    if($shift_constraint eq "relax")
+    {
+        $wordnet = &check_and_get("GENERAL:wordnet");
+        print STDOUT "\tdefine_tuning_tune_align::wordnet : $wordnet\n" if $VERBOSE;
+        $paraphrases = &check_and_get("GENERAL:paraphrases"); 
+        print STDOUT "\tdefine_tuning_tune_align::paraphrases : $paraphrases \n" if $VERBOSE;
+        $stop_list = &check_and_get("GENERAL:shift-word-stop-list"); 
+        print STDOUT "\tdefine_tuning_tune_align::stop-list : $stop_list \n" if $VERBOSE;
+    }
+
+    my $do_tune_align = &check_and_get("TUNING:do-tune-align");
 
     my $qsub_args = &check_and_get("TUNING:tuning-align:qsub-settings");
 
     print STDERR "-------\noutput : $output\ninput : $input\n ref : $reference\n-----\n" if $VERBOSE; 
 
-    my $in = safebackticks(("find", "$input*tok", "-maxdepth", "0", "-follow"));
+    my $in = safebackticks(("find", "$input/$corpus*id", "-maxdepth", "0", "-follow"));
     my @inputs = split(/\n/, $in);
     chomp(@inputs);
     my $nbsys = scalar @inputs;
@@ -1559,7 +1648,7 @@ sub define_tuning_tune_align {
     
     #generate dummy config with the correct number of priors 
     my @priors = (0.1) x $nbsys;
-    &generate_dummy_config("priors:".join("#",@priors)." lm-weight:0.1 null-penalty:0.3 word-penalty:0.1");
+    #&generate_dummy_config("priors:".join("#",@priors)." lm-weight:0.1 null-penalty:0.3 word-penalty:0.1");
 
     my $nb_threads=$nbsys>$max_threads?$max_threads:$nbsys;
     $qsub_args .= " -l nodes=1:ppn=$nb_threads"; 
@@ -1573,9 +1662,31 @@ sub define_tuning_tune_align {
     {
         push(@cmd, ("--hyp", $h));
     }
-    push(@cmd, ("--reference", $reference));
-    push(@cmd, ("--wordnet", $wordnet, "--paraphrases", $paraphrases));
-    push(@cmd, ("--shift-stop-word-list", $stop_list, "--shift-constraint", $shift_constraint));
+
+    push(@cmd, ("--nb-backbones", $nb_backbones));
+    #print "$reference does not exists .. trying with $reference.0\n" unless(-e $reference);
+    #$reference = $reference.".0" unless(-e $reference);
+    #die "Cannot find $reference !" unless (-e $reference);
+
+    my $ref = safebackticks(("find", "$input/ref*$corpus*id", "-maxdepth", "0", "-follow"));
+    my @refs = split(/\n/, $ref);
+    chomp(@refs);
+    print STDERR "TUNING references : ".join(" ",@refs)."\n\n" if $VERBOSE;
+
+    #push(@cmd, ("--reference", $reference));
+    foreach my $r (@refs)
+    {
+        push(@cmd, ("--reference", $r));
+    }
+
+    push(@cmd, ("--shift-constraint", $shift_constraint));
+    if($shift_constraint eq "relax")
+    {
+        push(@cmd, ("--wordnet", $wordnet));
+        push(@cmd, ("--paraphrases", $paraphrases));
+        push(@cmd, ("--shift-stop-word-list", $stop_list));
+    }
+
     push(@cmd, ("--multithread", $nb_threads)) if(defined $nb_threads);
     push(@cmd, ("--priors", @priors)) if(scalar @priors > 0);
     push(@cmd, ("--log-base", $log_base)) if(defined $log_base);
@@ -1585,22 +1696,37 @@ sub define_tuning_tune_align {
     #create optimization script
     my $manybleu_script="manybleu.pl";
     &generate_perl_script($manybleu_script, 1, $nb_threads, 30, "condor_manybleu.log", @cmd);
-
-    #create condor.xml
+        
     my $condor_basename="condor_manybleu";
-    &generate_condor_xml("$condor_basename.xml", $manybleu_script, $condor_basename);
     
-    #create new cmd : xmlOptimizer script
-    my $optim_cmd = "\nmkdir -p tuning/$VERSION";
+    my $optim_cmd .= "\nmkdir -p tuning/$VERSION";
     $optim_cmd .= "\ncd tuning/$VERSION";
     $optim_cmd .= "\ncp $dir/$manybleu_script .";
-    $optim_cmd .= "\ncp $dir/$condor_basename.xml .";
-    $optim_cmd .= "\nxmlOptimizer $condor_basename.xml";
-    $optim_cmd .= "\ncp $dir/tuning/$VERSION/$tuning_align_dir/".basename($output)."* $dir/tuning/";
-    $optim_cmd .= "\ncp $dir/tuning/$VERSION/".basename($output)."* $dir/tuning/";
-    $optim_cmd .= "\ncd ..";
-    print STDOUT "CMD : $optim_cmd\n";
-    
+
+    if($do_tune_align)
+    {
+        #create condor.xml
+        &generate_condor_xml("$condor_basename.xml", $manybleu_script, $condor_basename);
+        
+        #create new cmd : xmlOptimizer script
+        $optim_cmd .= "\ncp $dir/$condor_basename.xml .";
+        $optim_cmd .= "\nxmlOptimizer $condor_basename.xml";
+        $optim_cmd .= "\ncp $dir/tuning/$VERSION/$tuning_align_dir/".basename($output)."* $dir/tuning/$VERSION/";
+        #$optim_cmd .= "\ncp $dir/tuning/$VERSION/".basename($output)."* $dir/tuning/";
+        $optim_cmd .= "\ncd ..";
+        print STDOUT "CMD : $optim_cmd\n" if $VERBOSE;
+    }
+    else
+    {
+        #create condor input file with default values
+        #create new cmd : run $manybleu_script
+        $optim_cmd .= "\necho \"1.0 1.0 1.0 1.0 1.0 1.0\" > $condor_basename.input";
+        $optim_cmd .= "\n./$manybleu_script";
+        $optim_cmd .= "\ncp $dir/tuning/$VERSION/$tuning_align_dir/".basename($output)."* $dir/tuning/$VERSION/";
+        #$optim_cmd .= "\ncp $dir/tuning/$VERSION/".basename($output)."* $dir/tuning/";
+        $optim_cmd .= "\ncd ..";
+        print STDOUT "CMD : $optim_cmd\n" if $VERBOSE;
+    }
     &create_step_qsub($step_id, $optim_cmd, $qsub_args);
 
 }
@@ -1610,14 +1736,17 @@ sub define_tuning_tune_decoder {
     my $dir = &check_and_get("GENERAL:working-dir");
 
     my ($decod_weights,$input,$reference) = &get_output_and_input($step_id);
-    my $basename = basename($input).".cn";
+    my $input_base = basename($input);
     my $tuning_script = &check_and_get("TUNING:tuning-decoder-script");
     my $tuning_decoder_dir = &check_and_get("TUNING:tuning-decoder-dir");
-    my $scripts = &check_backoff_and_get("TUNING:moses-script-dir");
+    my $scripts_dir = &check_backoff_and_get("TUNING:moses-script-dir");
     my $nbest_size = &check_and_get("TUNING:nbest");
     my $lambda = &backoff_and_get("TUNING:lambda");
+    my $sc_config= &check_and_get("TUNING:sc-config"); #scorer config
     my $tune_continue = &backoff_and_get("TUNING:continue");
+    my $default_config = &check_and_get("GENERAL:config");
     my $config_default_name = &check_and_get("GENERAL:config-default-name");
+    my $prior_as_confidence = &backoff_and_get("GENERAL:priors-as-confidence");
     my $lmserver_port = &backoff_and_get("GENERAL:lmserver-port");
     my $use_local_lm = "";
     if($lmserver_port == -1)
@@ -1625,16 +1754,21 @@ sub define_tuning_tune_decoder {
         $use_local_lm = "--use-local-lm ";
     }
     
+    my $in = safebackticks(("find", "$dir/tuning/$VERSION/$input_base.cn*", "-maxdepth", "0", "-follow"));
+    my @inputs = split(/\n/, $in);
+    chomp(@inputs);
+    print STDERR "inputs : ".join(" ",@inputs)."\n\n" if $VERBOSE;
+
     my $config = "$dir/tuning/$VERSION/$config_default_name";
     if(!-e $config)
     {
-        my $nbsys = `ls $input.cn* | wc -l`; chomp $nbsys;
-        print STDERR "Generate dummy config with $nbsys priors\n";
+        my $nbsys = scalar @inputs;
+        print "Generate dummy config with $nbsys priors\n" if $VERBOSE;
         my @priors = (0.1) x $nbsys;
         my $p = "priors:".join("#",@priors)." lm-weight:0.1 null-penalty:0.3 word-penalty:0.1";
+        $p .= " priors-as-confidence:false" unless($prior_as_confidence);
         $p .= " use-local-lm:true" if($lmserver_port == -1);
-
-        &generate_dummy_config($p);
+        &generate_config($default_config, $p, $config);
     }
 
     #my $qsub_args = "#PBS -q trad -V -l nodes=1:ppn=2 -l mem=83g -l cput=1000:00:00";
@@ -1643,11 +1777,6 @@ sub define_tuning_tune_decoder {
     $nb_mert_runs--;
     
     print STDERR "-------\ndecod_weights : $decod_weights\n config : $config\n input : $input\n ref : $reference\n qsub_args : $qsub_args\n-----\n" if $VERBOSE; 
-
-    #my $in = safebackticks(("find", "$input.cn*", "-maxdepth", "0", "-follow"));
-    #my @inputs = split(/\n/, $in);
-    #chomp(@inputs);
-    #print "inputs : ".join(" ",@inputs)."\n\n" if $VERBOSE;
 
     my $jobs = &backoff_and_get("TUNING:jobs");
     my $decoder = &check_backoff_and_get("TUNING:decoder");
@@ -1668,7 +1797,10 @@ sub define_tuning_tune_decoder {
     for(my $run=0; $run<=$nb_mert_runs; $run++)
     {
         my $optcmd = "cd $dir/tuning/$VERSION";
-        $optcmd .= "\n\n$tuning_script $reference $decoder $config `ls $input.cn*` --nbest $nbest_size --working-dir $tuning_decoder_dir.$run --decoder-flags \"$decoder_settings $use_local_lm\" --rootdir $scripts $tuning_settings";
+        $optcmd .= "\n\n$tuning_script $reference $decoder $config ".join(' ', @inputs);
+        $optcmd .= " --nbest $nbest_size --working-dir $tuning_decoder_dir.$run"; 
+        $optcmd .= " --decoder-flags \"$decoder_settings $use_local_lm\" --rootdir $scripts_dir $tuning_settings";
+        $optcmd .= " --sc-config $sc_config" if $sc_config;
         $optcmd .= " --lambdas \"$lambda\"" if $lambda;
         $optcmd .= " --continue" if $tune_continue;
 
@@ -1714,44 +1846,28 @@ for run in {0..$nb_mert_runs}; do
     fi
 done";
 
-    my $tuning_dir = $decod_weights;
-    $tuning_dir =~ s/\/[^\/]+$//;
-    $cmd .= "\nmkdir -p $tuning_dir";
-    $cmd .= "\ncp \$bestdir/FINAL.weights.txt $decod_weights";
+    #my $tuning_dir = $decod_weights;
+    #$tuning_dir =~ s/\/[^\/]+$//;
+    #$cmd .= "\nmkdir -p $tuning_dir";
+
+    $cmd .= "\ncp \$bestdir/FINAL.weights.txt $dir/tuning/$VERSION/".basename($decod_weights);
 
     &create_step($step_id,$cmd);
 }
 
 sub define_tuning_generate_config_file {
     my ($step_id) = @_;
+    my ($config_for_eval, $align_basename, $decod_weights) = &get_output_and_input($step_id);
     my $dir = &check_and_get("GENERAL:working-dir");
     my $many_script_dir = &check_and_get("GENERAL:many-script-dir");
     my $config_default_name = &check_and_get("GENERAL:config-default-name");
-
-    my ($config_for_eval, $align_basename, $decod_weights) = &get_output_and_input($step_id);
-    my $config = "$dir/tuning/$VERSION/$config_default_name";
-    if(! -e $config)
-    {
-        print STDERR "Creating dummy config ...\n";
-        my $nbsys = `cat $decod_weights | tr -s " " "\n" | grep "priors" | cut -f2 -d":" | tr -s "#" "\n" | wc -l`; chomp $nbsys; 
-        my @priors = (0.1) x $nbsys;
-        &generate_dummy_config("priors:".join("#",@priors)." lm-weight:0.1 null-penalty:0.3 word-penalty:0.1");
-    }
+    my $config = &check_and_get("GENERAL:config");    
 
     # This file is created by Optimize_MANYbleu.pl
     my $align_costs = "$align_basename.align.costs";
-
-    print STDERR "generate_config_file : \ncosts:$align_costs \nweights:$decod_weights \nconfig-for-eval:$config_for_eval\n";
+    print STDERR "generate_config_file : \ncosts:$align_costs \nweights:$decod_weights \nconfig-for-eval:$config_for_eval\n" if $VERBOSE;
   
-    #open(COSTS, "$align_costs") or die "Can't open best costs file $align_costs! $!";
-    #my $bestcosts = <COSTS>;
-    #close(COSTS);
-    #print "Best costs: $bestcosts\n";
-
-    #open(WEIGHTS, "$decod_weights") or die "Can't open best costs file $decod_weights! $!";
-    #my $decodweights = <WEIGHTS>;
-    #close(WEIGHTS);
-    #print "Decod weights: $decodweights\n";
+    die "TUNING:generate_config_file: Cannot find $config to update ..." unless (-e $config); 
 
     my $cmd = "\nbestcosts=`cat $align_costs`";
     $cmd .= "\ndecodweights=`cat $decod_weights`";
@@ -2182,40 +2298,217 @@ sub encode_factor_list {
     chop($id);
     return $id;
 }
-
-sub define_evaluation_decode {
+sub define_evaluation_align {
     my ($set,$step_id) = @_;
+    
+    my ($output,$input,$weights_file, $reference) = &get_output_and_input($step_id);
+    print STDERR "-------\noutput: $output" if $VERBOSE; 
+    print STDERR "\ninputs: $input" if $VERBOSE; 
+    print STDERR "\nweights file: $weights_file" if $VERBOSE; 
+    print STDERR "\nreference basename: $reference" if $VERBOSE; 
+    print STDERR "\n-----\n" if $VERBOSE; 
+
+    my $corpus = &get("GENERAL:corpustest");
+    
+    my $many = &check_and_get("GENERAL:many");
     my $scripts = &check_and_get("GENERAL:moses-script-dir");
     my $dir = &check_and_get("GENERAL:working-dir");
+    my $log_base = &check_and_get("GENERAL:log-base");
+    my $max_threads = &check_and_get("GENERAL:max-threads");
+    my $nb_backbones = &check_and_get("GENERAL:nb-backbones");
+    my $mem = &backoff_and_get("GENERAL:mem");
     
-    my ($system_output,$config,$input) = &get_output_and_input($step_id);
-
     my $jobs = &backoff_and_get("EVALUATION:$set:jobs");
-    my $many = &check_and_get("GENERAL:many");
     my $decoder = &check_backoff_and_get("EVALUATION:$set:decoder");
     my $settings = &backoff_and_get("EVALUATION:$set:decoder-settings");
     $settings = "" unless $settings;
+
+    my $shift_constraint = &check_and_get("GENERAL:shift-constraint");
+    my ($wordnet, $paraphrases, $stop_list) = (undef, undef, undef);
+    if($shift_constraint eq "relax")
+    {
+        $wordnet = &check_and_get("GENERAL:wordnet");
+        print STDERR "\twordnet : $wordnet\n" if $VERBOSE;
+        $paraphrases = &check_and_get("GENERAL:paraphrases"); 
+        print STDERR "\tparaphrases : $paraphrases \n" if $VERBOSE;
+        $stop_list = &check_and_get("GENERAL:shift-word-stop-list"); 
+        print STDERR "\tstop-list : $stop_list \n" if $VERBOSE;
+    }
+
+    my $align_script = &check_and_get("GENERAL:align-script");
+
+    my $ref = safebackticks(("find", "$input/ref.$corpus*id", "-maxdepth", "0", "-follow"));
+    my @refs = split(/\n/, $ref);
+    chomp(@refs);
+    print STDERR "EVAL references : ".join(" ",@refs)."\n\n" if $VERBOSE;
+
+    my $in = safebackticks(("find", "$input/$corpus*id", "-maxdepth", "0", "-follow"));
+    my @inputs = split(/\n/, $in);
+    chomp(@inputs);
+    my $nbsys = scalar @inputs;
+    print STDERR "EVAL inputs : ".join(" ",@inputs)."\n\n" if $VERBOSE;
+    
+    my $nb_threads=$nbsys>$max_threads?$max_threads:$nbsys;
+    
+    #my $qsub_args = &get_qsub_args($DO_STEP[$step_id]);
+    my $qsub_args = &check_and_get("TUNING:tuning-align:qsub-settings");
+    $qsub_args .= " -l nodes=1:ppn=$nb_threads"; 
+    
+    #generate dummy config with the correct number of priors 
+    my @priors = (0.1) x $nbsys;
+    #&generate_dummy_config("priors:".join("#",@priors)." lm-weight:0.1 null-penalty:0.3 word-penalty:0.1");
+
+    # get optimized TERp costs
+    my @opt_costs = &get_optimized_align_weights($weights_file);
+    my @costs = ();
+    my $have_match = 0;
+    for(my $i=0; $i<$#opt_costs; $i+=2)
+    {
+       push(@costs, ("--".$opt_costs[$i], $opt_costs[$i+1])); 
+       $have_match = 1 if($opt_costs[$i] eq "match");
+    }
+    if($have_match == 0)
+    {
+        push(@costs, ("--match", 0.0));
+        print STDOUT " TERp 'match' cost not optimized -> MATCH COST set at 0.0\n";
+    }
+
+    #create script for incremental alignment 
+    my @cmd = ("\nmkdir -p evaluation/$set.$VERSION");
+    push(@cmd, ("\ncd evaluation/$set.$VERSION"));
+
+    push(@cmd, ("\ntime", $align_script, "--many", $many));
+    push(@cmd, ("--working-dir", "$dir/evaluation/$set.$VERSION"));
+    my $out = basename($output);
+    $out =~ s/BEST\.//;
+    push(@cmd, ("--output", "$dir/evaluation/$set.$VERSION/$out"));
+    
+    #push(@cmd, ("--reference", $reference));
+    foreach my $r (@refs)
+    {
+        push(@cmd, ("--reference", "$r"));
+    }
+    
+    foreach my $h (@inputs)
+    {
+        push(@cmd, ("--hyp", "$h"));
+    }
+    push(@cmd, ("--nb-backbones", $nb_backbones));
+    push(@cmd, @costs);
+    push(@cmd, ("--shift-constraint", $shift_constraint));
+    if($shift_constraint eq "relax")
+    {
+        push(@cmd, ("--wordnet", $wordnet));
+        push(@cmd, ("--paraphrases $paraphrases"));
+        push(@cmd, ("--shift-stop-word-list", $stop_list));
+    }
+    push(@cmd, ("--multithread", $nb_threads)) if(defined $nb_threads);
+    push(@cmd, ("--priors", @priors)) if(scalar @priors > 0);
+    push(@cmd, ("--log-base", $log_base)) if(defined $log_base);
+
+    #push(@cmd, ("\ncp $dir/evaluation/$VERSION/$out.* $dir/evaluation/"));
+    push(@cmd, ("\ncd .."));
+    print STDERR "EVALUATION:align CMD: ".join(' ',@cmd)." \n" if $VERBOSE;
+    
+    &create_step_qsub($step_id, join(' ', @cmd), $qsub_args);
+    
+}
+
+sub get_optimized_align_weights {
+    my $wfile = $_[0];
+    open (FD, "<$wfile") or return ();
+    my @lines = <FD>;
+    close(FD);
+
+    die "Bad format: optimized costs file" unless scalar(@lines)==1;
+    my @costs = ();
+    print STDERR "--- OPTIMIZED TERp costs\n" if $VERBOSE;
+    foreach my $nc (split(/\s+/, $lines[0]))
+    {
+        $nc =~ /(.+):(.+)/;
+        push(@costs, ($1, $2));
+        print STDERR "$nc: $ -> '$1' '$2'\n" if $VERBOSE;
+    }
+    print STDERR "------------------------\n" if $VERBOSE;
+    return @costs;
+}
+sub get_optimized_decode_weights {
+    
+    my $wfile = $_[0];
+    print STDERR "get_optimized_decode_weights: Optimized decode weights file: $wfile\n" if $VERBOSE;
+    open (FD, "<$wfile") or return ();
+    my @lines = <FD>;
+    close(FD);
+    print STDERR "get_optimized_decode_weights: Optimized decode weights: $lines[0]\n" if $VERBOSE;
+
+    #lm-weight:0.0447604 word-penalty:0.112127 null-penalty:0.0206825 priors:-0.232857#-0.150477#-0.225275#-0.213821
+
+    die "Bad format: optimized weights file" unless scalar(@lines)==1;
+
+    return $lines[0];
+
+#    my @costs = ();
+#    print STDERR "--- OPTIMIZED decode weights\n"; # if $VERBOSE;
+#    foreach my $nc (split(/\s+/, $lines[0]))
+#    {
+#        $nc =~ /(.+):(.+)/;
+#        push(@costs, ($1, $2));
+#        print STDERR "$nc: $ -> '$1' '$2'\n" if $VERBOSE;
+#    }
+#    print STDERR "------------------------\n" if $VERBOSE;
+#    return @costs;
+}
+
+sub define_evaluation_decode {
+    my ($set,$step_id) = @_;
+    
+    my ($system_output,$input,$weights_file) = &get_output_and_input($step_id);
+    if($VERBOSE)
+    {
+        print STDERR "-------\nEVAL DECOD output: $system_output"; 
+        print STDERR "\nEVAL DECOD inputs (cn): $input"; 
+        print STDERR "\nEVAL DECOD weights file: $weights_file\n-----\n"; 
+    }
+    my $scripts = &check_and_get("GENERAL:moses-script-dir");
+    my $dir = &check_and_get("GENERAL:working-dir");
+    my $many = &check_and_get("GENERAL:many");
+    my $mem = &backoff_and_get("GENERAL:mem");
+    
+    my $jobs = &backoff_and_get("EVALUATION:$set:jobs");
+    my $decoder = &check_backoff_and_get("EVALUATION:$set:decoder");
+    my $decoder_settings = &backoff_and_get("EVALUATION:$set:decoder-settings");
+    $decoder_settings = "" unless $decoder_settings;
+    print "decoder-settings : $decoder_settings\n" if $VERBOSE;
     my $nbest = &backoff_and_get("EVALUATION:$set:nbest");
     my $max_threads = &check_and_get("GENERAL:max-threads");
-    my $mem = &backoff_and_get("GENERAL:mem");
    
-    my $wordnet = &check_and_get("GENERAL:wordnet");
-    my $paraphrases = &check_and_get("GENERAL:paraphrases"); 
-    my $stop_list = &check_and_get("GENERAL:shift-word-stop-list"); 
-    my $shift_constraint = &check_and_get("GENERAL:shift-constraint");
-
     my $lm = &check_and_get("GENERAL:decodlm");
     my $vocab= &check_and_get("GENERAL:vocab");
     my $order = &check_and_get("GENERAL:lm-order");
     my $port = &check_and_get("GENERAL:lmserver-port");
     print STDERR "Using local lm $lm" unless($port != -1);
-
-    my @inputs = `find $input*tok -maxdepth 0 -follow`;
+    
+    my $default_config = &check_and_get("GENERAL:config");
+    my $config_default_name = &check_and_get("GENERAL:config-default-name");
+    
+    my $basename = basename($input).".cn";
+    $basename =~ s/BEST\.//;
+    my @inputs = `find $dir/evaluation/$set.$VERSION/$basename* -maxdepth 0 -follow`;
     chomp(@inputs);
     my $nbsys = scalar @inputs;
-    print STDERR "EVAL inputs : ".join(" ",@inputs)."\n\n" if $VERBOSE;
+    print STDERR "EVAL DECOD inputs : ".join(" ",@inputs)."\n\n" if $VERBOSE;
     my $nb_threads=$nbsys>$max_threads?$max_threads:$nbsys;
+
+
+    #generate config file with optimized weights
+    my $weights = &get_optimized_decode_weights("$dir/tuning/$VERSION/".basename($weights_file));
+    $weights = "lm-weight:0.1 word-penalty:0.1 null-penalty:0.1 priors:-0.1#-0.1#-0.1#-0.1" unless $weights;
+    print "Generate MANYdecode config file with params: '$weights'\n" if $VERBOSE;
     
+    my $config = "$dir/evaluation/$set.$VERSION/$config_default_name";
+    print STDERR "EVAL DECOD weights : $weights\n" if $VERBOSE;
+    $weights .= " use-local-lm:true" if($port == -1);
+    &generate_config($default_config, $weights, $config);
     
     my $nbest_size;
     if ($nbest) {
@@ -2225,30 +2518,37 @@ sub define_evaluation_decode {
 
     #my $qsub_args = &get_qsub_args($DO_STEP[$step_id]);
     my $qsub_args .= "-q trad -V -l nodes=1:ppn=$nb_threads -l mem=$mem -l cput=1000:00:00";
-    my $cmd = "\nmkdir -p $dir/evaluation/$set.$VERSION";
-    $cmd .= "\ncd $dir/evaluation/$set.$VERSION";  
     
-    my $basename = basename($system_output); 
-    
-    $cmd .= "\n$decoder --many $many  --working-dir . --output $dir/evaluation/$set.$VERSION/$basename";
+    my $cmd .= "\ncd $dir/evaluation/$set.$VERSION";  
+    my $base_out = basename($system_output); 
+   
+    $cmd .= "\n$decoder $decoder_settings --output $dir/evaluation/$set.$VERSION/$base_out";
     $cmd .= " --config $config";
     foreach my $h (@inputs)
     {
         $cmd .= " --hyp $h";
     }
-    $cmd .= " --lm $lm --vocab $vocab --lm-order $order";
-    $cmd .= " --lm-server-port $port";
     $cmd .= " --use-local-lm" if($port==-1);
-    $cmd .= " --shift-constraint $shift_constraint --wordnet $wordnet ";
-    $cmd .= " --paraphrases $paraphrases --shift-stop-word-list $stop_list";
-    $cmd .= " --multithread $nb_threads ";
+    $cmd .= " --multithread $nb_threads " if($nb_threads > 1);
     
     $cmd .= " --nbest-file $system_output.best$nbest_size --nbest-size $nbest_size --nbest-format MOSES" if $nbest;
-
-    $cmd .= "\n\\cp $dir/evaluation/$set.$VERSION/$basename $dir/evaluation/"; 
+    #$cmd .= "\n\\cp $dir/evaluation/$set.$VERSION/$basename $dir/evaluation/"; 
 
     &create_step_qsub($step_id,$cmd,$qsub_args);
 }
+
+sub define_evaluation_score_rb {
+     my ($set,$step_id) = @_;
+
+    #call score.rb with correct parameters
+    my $script = &backoff_and_get("EVALUATION:$set:score-rb");
+    my ($output,$input,$ref) = &get_output_and_input($step_id);
+
+    my $cmd = "$script $ref $input > $output";
+
+    &create_step($step_id,$cmd);
+}
+
 
 sub define_evaluation_analysis {
     my ($set,$step_id) = @_;
@@ -2711,12 +3011,12 @@ sub get_default_file {
     die("no specified default name for $step") unless $default;
 
     if ($default_set) {
-	$default =~ s/^(.+\/)([^\/]+)$/$1$default_set.$2/g;
+	    $default =~ s/^(.+\/)([^\/]+)$/$1$default_set.$2/g;
     }
 
     # if from a step that is redone, get version number
     my $version = 0;
-    $version = $RE_USE[$STEP_LOOKUP{$step}] if (defined($STEP_LOOKUP{$step}));
+    $version = $RE_USE[$STEP_LOOKUP{$step}] if (defined($STEP_LOOKUP{$step}) && defined($RE_USE[$STEP_LOOKUP{$step}])); # re-use may be empty if --redo-all
     $version = "*" if $version > 1e6;    # any if re-use checking
     $version = $VERSION unless $version; # current version if no re-use
 
@@ -2917,6 +3217,15 @@ sub generate_dummy_config
     my $config_default_name = &check_and_get("GENERAL:config-default-name");
     `mkdir -p $dir/tuning/$VERSION`;
     my @cmd = ("$many_script_dir/update_many_config.pl", "$config", "$dir/tuning/$VERSION/$config_default_name", "$args");
+    safesystem(@cmd);
+}
+
+sub generate_config
+{
+    my ($default, $args, $to) = @_;
+    print STDERR "generate_config: default=$default, args=$args, to=$to\n" if $VERBOSE;
+    my $many_script_dir = &check_and_get("GENERAL:many-script-dir"); 
+    my @cmd = ("$many_script_dir/update_many_config.pl", "$default", "$to", "$args");
     safesystem(@cmd);
 }
 

@@ -24,6 +24,7 @@ import edu.cmu.sphinx.util.props.Configurable;
 import edu.cmu.sphinx.util.props.ConfigurationManager;
 import edu.cmu.sphinx.util.props.PropertyException;
 import edu.cmu.sphinx.util.props.PropertySheet;
+import edu.cmu.sphinx.util.props.S4Boolean;
 import edu.cmu.sphinx.util.props.S4Component;
 import edu.cmu.sphinx.util.props.S4Integer;
 import edu.cmu.sphinx.util.props.S4String;
@@ -43,28 +44,39 @@ public class MANYdecode implements Configurable
 	
 	/* The property that defines the output filename */
 	@S4String(defaultValue = "many.output")
-    public final static String PROP_OUTPUT_FILE = "output";
+        public final static String PROP_OUTPUT_FILE = "output";
 	
 	/* The property that defines the hypotheses ConfusionNetworks filenames */
 	@S4String(defaultValue = "")
-    public final static String PROP_HYPOTHESES_CN_FILES = "hypotheses-cn";
+        public final static String PROP_HYPOTHESES_CN_FILES = "hypotheses-cn";
+	
+        /* The property that defines the hypotheses text filenames */
+	//@S4String(defaultValue = "")
+        //public final static String PROP_HYPOTHESES_FILES = "hypotheses";
 	
 	/* The property that defines the system priors */
 	@S4String(defaultValue = "")
 	public final static String PROP_PRIORS = "priors";
 	
+	@S4Boolean(defaultValue = true)
+	public final static String PROP_PRIOR_AS_CONFIDENCE = "priors-as-confidence";
+	
 	/** The property that defines the number of threads used */
 	@S4Integer(defaultValue = 0)
 	public final static String PROP_MULTITHREADED = "multithread";
-	
+
+
 	private String outfile;
-	private String hypotheses_cn;
+	private String hypotheses_cn;   // confusion networks to merge and decode
+	//private String hypotheses;      // initial systems hypotheses
 	private String priors_str;
+	private boolean priors_as_confidence;
 	private boolean mustReWeight = false;
 	private boolean allocated;
-	private int nb_threads;
+	//private int nb_threads;
 	
 	private String[] hyps_cn = null;
+	private String[] hyps = null;
 	private float[] priors = null;
 	
 	private TokenPassDecoder decoder = null;
@@ -126,6 +138,7 @@ public class MANYdecode implements Configurable
 		allocated = true;
 		logger.info("MANYdecode::allocate ...");
 		hyps_cn = hypotheses_cn.split("\\s+");
+		//hyps = hypotheses.split("\\s+");
 		String[] lst = priors_str.split("\\s+");
 		priors = new float[lst.length];
 		
@@ -157,17 +170,21 @@ public class MANYdecode implements Configurable
 	{
 		//System.err.println("MANYdecode::newProperties ... START");
 		if (allocated) {
-            throw new RuntimeException("Can't change properties after allocation");
-        }
+                    throw new RuntimeException("Can't change properties after allocation");
+                }
 		
 		logger = ps.getLogger();
 		decoder = (TokenPassDecoder) ps.getComponent(PROP_DECODER);
 		outfile = ps.getString(PROP_OUTPUT_FILE);
 		hypotheses_cn = ps.getString(PROP_HYPOTHESES_CN_FILES);
+		//hypotheses = ps.getString(PROP_HYPOTHESES_FILES);
 		priors_str = ps.getString(PROP_PRIORS);
-		if(priors_str.equals("") == false)
+		priors_as_confidence = ps.getBoolean(PROP_PRIOR_AS_CONFIDENCE);
+		if(priors_str.equals("") == false && priors_as_confidence)
 			mustReWeight = true;
-		nb_threads = ps.getInt(PROP_MULTITHREADED);
+		//nb_threads = ps.getInt(PROP_MULTITHREADED);
+                
+
 		//System.err.println("MANYdecode::newProperties ...END");
 	}
 
@@ -187,13 +204,12 @@ public class MANYdecode implements Configurable
 			if(mustReWeight)
 			{
 				MANYcn.changeSysWeights(fullcns, priors);
-				if(DEBUG) MANYcn.outputFullCNs(fullcns,"output.fullcn.reweight."+i);
-				
-				cns = MANYcn.fullCNs2CNs(fullcns);
-				if(DEBUG) MANYcn.outputCNs(cns,"output.cn.reweight."+i);
-				
-				fullcns = null;
 			}
+			
+			if(DEBUG) MANYcn.outputFullCNs(fullcns,"output.fullcn.reweight."+i);
+			cns = MANYcn.fullCNs2CNs(fullcns);
+			if(DEBUG) MANYcn.outputCNs(cns,"output.cn.reweight."+i);
+			fullcns = null;
 			
 			all_cns.add(cns);
 			
@@ -245,7 +261,7 @@ public class MANYdecode implements Configurable
 			
 			if(i%100==0) { logger.info("run : decoding graph for sentence "+i); }
 			
-            Graph g = new Graph(cns, priors);
+                        Graph g = new Graph(cns, priors);
 			if(DEBUG) g.printHTK("graph.htk_"+i+".txt");
 
 			// Then we can decode this graph ...

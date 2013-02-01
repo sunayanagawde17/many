@@ -6,33 +6,66 @@
 # mert-manydecode.pl <foreign> <english> <decoder-executable> <decoder-config>
 # For other options see below or run 'mert-many.pl --help'
 
+    # Notes:
+    # <foreign> and <english> should be raw text files, one sentence per line
+    # <english> can be a prefix, in which case the files are <english>0, <english>1, etc. are used
 
-use FindBin qw($Bin);
-use File::Basename;
+    # Revision history
 
-my $SCRIPTS_ROOTDIR = $Bin;
-$SCRIPTS_ROOTDIR =~ s/\/training$//;
-$SCRIPTS_ROOTDIR = $ENV{"SCRIPTS_ROOTDIR"} if defined($ENV{"SCRIPTS_ROOTDIR"});
+    # 5 Aug 2009  Handling with different reference length policies (shortest, average, closest) for BLEU 
+    #             and case-sensistive/insensitive evaluation (Nicola Bertoldi)
+    # 5 Jun 2008  Forked previous version to support new mert implementation.
+    # 13 Feb 2007 Better handling of default values for lambda, now works with multiple
+    #             models and lexicalized reordering
+    # 11 Oct 2006 Handle different input types through parameter --inputype=[0|1]
+    #             (0 for text, 1 for confusion network, default is 0) (Nicola Bertoldi)
+    # 10 Oct 2006 Allow skip of filtering of phrase tables (--no-filter-phrase-table)
+    #             useful if binary phrase tables are used (Nicola Bertoldi)
+    # 28 Aug 2006 Use either closest or average or shortest (default) reference
+    #             length as effective reference length
+    #             Use either normalization or not (default) of texts (Nicola Bertoldi)
+    # 31 Jul 2006 move gzip run*.out to avoid failure wit restartings
+    #             adding default paths
+    # 29 Jul 2006 run-filter, score-nbest and mert run on the queue (Nicola; Ondrej had to type it in again)
+    # 28 Jul 2006 attempt at foolproof usage, strong checking of input validity, merged the parallel and nonparallel version (Ondrej Bojar)
+    # 27 Jul 2006 adding the safesystem() function to handle with process failure
+    # 22 Jul 2006 fixed a bug about handling relative path of configuration file (Nicola Bertoldi) 
+    # 21 Jul 2006 adapted for Moses-in-parallel (Nicola Bertoldi) 
+    # 18 Jul 2006 adapted for Moses and cleaned up (PK)
+    # 21 Jan 2005 unified various versions, thorough cleanup (DWC)
+    #             now indexing accumulated n-best list solely by feature vectors
+    # 14 Dec 2004 reimplemented find_threshold_points in C (NMD)
+    # 25 Oct 2004 Use either average or shortest (default) reference
+    #             length as effective reference length (DWC)
+    # 13 Oct 2004 Use alternative decoders (DWC)
+    # Original version by Philipp Koehn
 
-my $MANY_ROOTDIR = "./";
+    use FindBin qw($Bin);
+    use File::Basename;
 
-# for each decoder parameter (_lm_weight, _null_penalty _word_penalty and priors),
-# there is a list of [ default value, lower bound, upper bound ]-triples. 
-# In most cases, only one triple is used
+    my $SCRIPTS_ROOTDIR = $Bin;
+    $SCRIPTS_ROOTDIR =~ s/\/training$//;
+    $SCRIPTS_ROOTDIR = $ENV{"SCRIPTS_ROOTDIR"} if defined($ENV{"SCRIPTS_ROOTDIR"});
 
-# defaults for initial values and ranges are:
-my $default_triples = {
-    # these basic models exist even if not specified, they are
-    # not associated with any model file
-    "lm" => [ [ 1.0, 0.0, 2.0 ] ],  # language model
-    "word" => [ [ 0.5, -1.0, 1.0 ] ],  # word penalty (equiv word penalty)
-    "null" => [ [ 0.5, -1.0, 1.0 ] ],  # null penalty
-    "priors" => [ ] #prior probabilities
-};
+    my $MANY_ROOTDIR = "./";
 
-my $additional_triples = {
-    # if more lambda parameters for the weights are needed
-    # (due to additional tables) use the following values for them
+    # for each decoder parameter (_lm_weight, _null_penalty _word_penalty and priors),
+    # there is a list of [ default value, lower bound, upper bound ]-triples. 
+    # In most cases, only one triple is used
+
+    # defaults for initial values and ranges are:
+    my $default_triples = {
+        # these basic models exist even if not specified, they are
+        # not associated with any model file
+        "lm" => [ [ 1.0, 0.0, 2.0 ] ],  # language model
+        "word" => [ [ 0.0, -1.0, 1.0 ] ],  # word penalty (equiv word penalty)
+        "null" => [ [ 0.0, -1.0, 1.0 ] ],  # null penalty
+        "priors" => [ ] #prior probabilities
+    };
+
+    my $additional_triples = {
+        # if more lambda parameters for the weights are needed
+        # (due to additional tables) use the following values for them
 };
     # the following models (given by shortname) use same triplet
     # for any number of lambdas, the number of the lambdas is determined
@@ -41,7 +74,7 @@ my $additional_triples = {
 
 # many_config.xml file uses FULL names for lambdas, while this training script internally (and on the command line)
 # uses ABBR names.
-my $ABBR_FULL_MAP = "lm=lm-weight word=word-penalty null=null-penalty priors=priors use-local-lm=use-local-lm";
+my $ABBR_FULL_MAP = "lm=lm-weight word=word-penalty null=null-penalty priors=priors";
 my %ABBR2FULL = map {split/=/,$_,2} split /\s+/, $ABBR_FULL_MAP;
 my %FULL2ABBR = map {my ($a, $b) = split/=/,$_,2; ($b, $a);} split /\s+/, $ABBR_FULL_MAP;
 
@@ -92,6 +125,7 @@ my $___INPUTTYPE = 0;
 my $mertdir = undef; # path to new mert directory
 my $mertargs = undef; # args to pass through to mert
 my $qsubwrapper = undef;
+my $scorer_config = "BLEU:1";
 my $old_sge = 0; # assume sge<6.0
 my $many_cmd = undef;
 my $___MANY_CONFIG_BAK = undef; # backup pathname to startup ini file
@@ -144,6 +178,7 @@ GetOptions(
   "prev-aggregate-nbestlist=i" => \$prev_aggregate_nbl_size, #number of previous step to consider when loading data (default =-1, i.e. all previous)
   "maximum-iterations=i" => \$maximum_iterations,
   "starting-weights-from-xml!" => \$starting_weights_from_xml,
+  "sc-config=s" => \$scorer_config
 ) or exit(1);
 
 # the 4 required parameters can be supplied on the command line directly
@@ -155,24 +190,15 @@ if (scalar @ARGV >= 5) {
   $___MANY_CONFIG = shift;
   push(@___HYPS, @ARGV);
 }
-else
-{
-    print STDERR "Not enough parameters ...\n";
-}
 
+print "$0: running on ".`hostname -f`."\n";
 print "MANY : $___MANY\n" if defined($___MANY);
 print "CONFIG : $___MANY_CONFIG\n" if defined($___MANY_CONFIG);
 print "REFS : $___REF_BASENAME\n" if defined($___REF_BASENAME);
 print "HYPS : @___HYPS\n" if @___HYPS > 0;
 
 if ($usage || !defined $___REF_BASENAME || scalar @___HYPS < 2 || !defined $___MANY || !defined $___MANY_CONFIG) {
-
-    print STDERR "Please, provide a basename for the reference(s)\n" if( !defined($___REF_BASENAME) );
-    print STDERR "Please, provide at least 2 input files\n" if( scalar @___HYPS < 2 );
-    print STDERR "Please, provide a decoder\n" if( !defined($___MANY) );
-    print STDERR "Please, provide a initial config file\n" if( !defined($___MANY_CONFIG) );
-
-  print STDERR "usage: mert-many.pl references_basename many_script config_file input_file1 input_file2 ... input_fileN
+  print STDERR "usage: mert-manydecode.pl references_basename many_script config_file input_file1 input_file2 ... input_fileN
 Options:
   --working-dir=mert-dir ... where all the files are created
   --nbest=100            ... how big nbestlist to generate
@@ -220,6 +246,7 @@ Options:
                                   the starting weights (and also as the fixed
                                   weights if --activate-features is used).
                                   default: yes (used to be 'no')
+  --sc-config=STRING     ... extra option to specify multiscoring ex: BLEU:1,TER:1 => BLEU-TER/2.
 ";
   exit 1;
 }
@@ -325,12 +352,15 @@ if (-e $ref_abs) {
 }
 else {
   # if multiple file, get a full list of the files
-    my $part = 0;
-    while (-e $ref_abs.$part) {
-        push @references, $ref_abs.$part;
-        $part++;
-    }
-    die("Reference translations not found: $___REF_BASENAME (interpreted as $ref_abs)") unless $part;
+  #  my $part = 0;
+  #  while (-e $ref_abs.".".$part) {
+  #      push @references, $ref_abs.".".$part;
+  #      $part++;
+  #  }
+  #  die("Reference translations not found: $___REF_BASENAME (interpreted as $ref_abs)") unless $part;
+    my $ref = safebackticks(("find", "$ref_abs*.[0-9]", "-maxdepth", "0", "-follow"));
+    @references = split(/\n/, $ref);
+    chomp(@references);
 }
 
 my $config_abs = ensure_full_path($___MANY_CONFIG);
@@ -393,8 +423,6 @@ my @order_of_lambdas_from_decoder = ();
 my $cwd = `pawd 2>/dev/null`; 
 if(!$cwd){$cwd = `pwd`;}
 chomp($cwd);
-
-print STDERR "Current directory : $cwd\nWorking directory : $___WORKING_DIR\n";
 
 safesystem("mkdir -p $___WORKING_DIR") or die "Can't mkdir $___WORKING_DIR";
 
@@ -490,7 +518,6 @@ if ($continue) {
     die "Failed to parse mert.log, missed Best point there."
       if !defined $bestpoint || !defined $devbleu;
     print "($step) BEST at $step $bestpoint => $devbleu at ".`date`;
-    
     my @newweights = split /\s+/, $bestpoint;
     
     print STDERR "Reading last cached lambda values (result from step $step)\n";
@@ -500,7 +527,7 @@ if ($continue) {
     store_new_lambda_values(\%used_triples, \@order_of_lambdas_from_decoder, \@newweights);
   }
   else{
-    print STDERR "No pevious data are needed\n";
+    print STDERR "No previous data are needed\n";
   }
 
   $start_run = $step +1;
@@ -560,14 +587,94 @@ while(1) {
   my $feature_file = "run$run.${base_feature_file}";
   my $score_file = "run$run.${base_score_file}";
 
-  $cmd = "$mert_extract_cmd $mert_extract_args --scfile $score_file --ffile $feature_file -r ".join(",", @references)." -n $nbest_file";
+############OLD
+#$cmd = "$mert_extract_cmd $mert_extract_args --scfile $score_file --ffile $feature_file -r ".join(",", @references)." -n $nbest_file";
+#
+#  if (defined $___NB_THREADS) {
+#    safesystem("$qsubwrapper $pass_old_sge -command='$cmd' -queue-parameter=\"$queue_flags\" -stdout=extract.out -stderr=extract.err" )
+#      or die "Failed to submit extraction to queue (via $qsubwrapper)";
+#  } else {
+#    safesystem("$cmd > extract.out 2> extract.err") or die "Failed to do extraction of statistics.";
+#  }
+############END OLD
 
-  if (defined $___NB_THREADS) {
-    safesystem("$qsubwrapper $pass_old_sge -command='$cmd' -queue-parameter=\"$queue_flags\" -stdout=extract.out -stderr=extract.err" )
-      or die "Failed to submit extraction to queue (via $qsubwrapper)";
-  } else {
-    safesystem("$cmd > extract.out 2> extract.err") or die "Failed to do extraction of statistics.";
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+  my $cmd = "";
+  my $scorer_name;
+  my $scorer_weight;
+  $scorer_config=~s/ //g;
+  my @lists_scorer_config=split(",",$scorer_config);
+  $mert_mert_args=$mert_mert_args." --sctype MERGE ";
+  my $scorer_config_spec;
+  # launch all extractors 
+  foreach $scorer_config_spec(@lists_scorer_config)
+  {
+    my @lists_scorer_config_spec=split(":",$scorer_config_spec);
+    $scorer_name=$lists_scorer_config_spec[0];
+    $scorer_weight=$lists_scorer_config_spec[1];
+    $cmd = "$mert_extract_cmd $mert_extract_args --scfile $score_file.$scorer_name --ffile $feature_file.$scorer_name --sctype $scorer_name -r ".join(",", @references)." -n $nbest_file";
+    
+    #&submit_or_exec($cmd,"extract.out.$scorer_name","extract.err.$scorer_name");
+    safesystem("$cmd > extract.out.$scorer_name 2> extract.err.$scorer_name") or die "ERROR: Failed to run '$cmd'.";
+
   }
+  my @scorer_content;
+  my $fileIncrement=0;
+  #prepare init file for merging metrics
+  open(FILE,">merge.init") || die ("File creation ERROR : merge.init");
+  foreach $scorer_config_spec(@lists_scorer_config)
+  {
+    my @lists_scorer_config_spec=split(":",$scorer_config_spec);
+    $scorer_name=$lists_scorer_config_spec[0];
+    $scorer_weight=$lists_scorer_config_spec[1];
+    print FILE "$scorer_name $scorer_weight $score_file.$scorer_name $feature_file.$scorer_name\n";
+    my @tmp_content=`/bin/cat $score_file.$scorer_name`;
+    $scorer_content[$fileIncrement] = [ @tmp_content ];
+    if ($fileIncrement==0)
+    {
+	`/bin/cp $feature_file.$scorer_name $feature_file`;
+    }
+    $fileIncrement++;
+  }
+  close(FILE);
+    # print STDERR "ON  VA RASSEMBLER dans $score_file\n";
+  open(SCOREFILE,">$score_file") || die ("File creation ERROR : $score_file");
+  my $newFileIncrement=0;
+  my $contentIncrement=0;
+  my $contentSize=scalar(@{$scorer_content[0]});
+  while ($contentIncrement< $contentSize)
+  {
+      my $line="";
+      $newFileIncrement=0;
+      while($newFileIncrement< $fileIncrement)
+      {
+	 if (rindex($scorer_content[$newFileIncrement][$contentIncrement],"BEGIN")<0)
+	 {
+	    $line=$line." ".$scorer_content[$newFileIncrement][$contentIncrement];
+	    chomp($line);
+	 }
+	 else
+	 {
+	    my @split_line_input=split(" ",$scorer_content[$newFileIncrement][$contentIncrement]);
+	    my @split_line=split(" ",$line);
+	    if (scalar(@split_line)>0)
+	    {
+		$split_line_input[3]=$split_line[3]+$split_line_input[3];
+	    }
+	    $line=$split_line_input[0]." ".$split_line_input[1]." ".$split_line_input[2]." ".$split_line_input[3]." MERGE";
+	 }
+	 $newFileIncrement++;
+      }
+      $line=~s/^[ ]+//g;
+      $line=~s/[ ]+$//g;
+      $line=~s/[ ]+/ /g;
+      print SCOREFILE $line."\n";
+      $contentIncrement++;
+  }
+  close(SCOREFILE);
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
+
 
   # Create the initial weights file for mert, in init.opt
   # mert reads in the file init.opt containing the current
@@ -639,8 +746,16 @@ while(1) {
 
 
  # backup copies
-  safesystem ("\\cp -f extract.err run$run.extract.err") or die;
-  safesystem ("\\cp -f extract.out run$run.extract.out") or die;
+ ##########OLD
+ #safesystem ("\\cp -f extract.err run$run.extract.err") or die;
+ #safesystem ("\\cp -f extract.out run$run.extract.out") or die;
+ ###########END OLD
+  foreach my $extractFiles(`/bin/ls extract.*`)
+  {
+    chomp $extractFiles;
+    safesystem ("\\cp -f $extractFiles run$run.$extractFiles") or die;
+  }
+
   safesystem ("\\cp -f $mert_logfile run$run.$mert_logfile") or die;
   safesystem ("touch $mert_logfile run$run.$mert_logfile") or die;
   safesystem ("\\cp -f $weights_out_file run$run.$weights_out_file") or die; # this one is needed for restarts, too
@@ -801,7 +916,7 @@ sub run_many {
     my $filename_template = "run%d.best$___N_BEST_LIST_SIZE.out";
     my $filename = sprintf($filename_template, $run);
     
-    print "params = $parameters\n";
+    print "mert decoder-params = $parameters\n";
     # prepare the decoder config:
     my $many_config = "";
     my @vals = ();
@@ -927,7 +1042,7 @@ sub create_many_config {
       }
     }
     
-    # create new many.xml decoder config file by cloning and overriding the original one
+    # create new many.config.xml decoder config file by cloning and overriding the original one
 	open(INI,$infn) or die "Can't read $infn";
 	delete($P{"config"}); # never output 
 	print "Saving new config to: $outfn\n";
@@ -940,28 +1055,29 @@ sub create_many_config {
     my $line = <INI>;
     while(1) {
 		last unless $line;
+        #chomp $line;
 		# skip until hit <property 
 		if ($line !~ /^<property name=\"(.+)\"\s+value=\".+\"/) { 
 	    	print OUT $line; # if $line =~ /^\#/ || $line =~ /^\s+$/;
+	    	#print STDERR $line; # if $line =~ /^\#/ || $line =~ /^\s+$/;
 		}
 		else {
 			# parameter name
 			my $parameter = $1;
 			$parameter = $ABBR2FULL{$parameter} if defined($ABBR2FULL{$parameter});
-        #    print "PARAM: $parameter -> ";
 			
 			# change parameter, if new values
 			if (defined($P{$parameter})) {
-          #      print "------- NEW VALUE FOR $parameter -> $P{$parameter}";
 				# write new values
 				print OUT '<property name="'.$parameter.'" value="'."@{$P{$parameter}}".'"/>'."\n";
+				#print STDERR '<property name="'.$parameter.'" value="'."@{$P{$parameter}}".'"/>'."\n";
 				delete($P{$parameter});
 			}
 			else # unchanged parameter, write old
 			{
 				print OUT $line;
+				#print STDERR $line;
 			}
-           # print "\n";
 		}
 	    $line = <INI>;
     }
@@ -1026,7 +1142,7 @@ sub scan_many_config {
         my @tab;
         if( defined($FULL2ABBR{$weightname}) ){
         	
-        	#print "---> scan_config found LAMBDA : $weightname : $weightval\n";
+        	print "---> scan_config found LAMBDA : $weightname : $weightval\n";
             $config_weights->{$FULL2ABBR{$weightname}} = [] if ! defined $config_weights->{$FULL2ABBR{$weightname}};
         	
         	#check how many lambdas are needed
@@ -1098,4 +1214,24 @@ sub safesystem {
   }
 }
 
+sub safebackticks {
+  print STDERR "Executing: @_\n";
+  my $ret = `@_`;
+  if ($? == -1) {
+      print STDERR "Failed to execute: @_\n  $!\n";
+      exit(1);
+  }
+  elsif ($? & 127) {
+      printf STDERR "Execution of: @_\n  died with signal %d, %s coredump\n",
+          ($? & 127),  ($? & 128) ? 'with' : 'without';
+      exit(1);
+  }
+  else {
+    my $exitcode = $? >> 8;
+    print STDERR "Exit code: $exitcode\n" if $exitcode;
+    #return ! $exitcode;
+  }
+  chomp $ret;
+  return $ret;
+}
 

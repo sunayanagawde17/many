@@ -20,7 +20,6 @@ public class TokenList extends ArrayList<Token>
 	@Override
 	protected void removeRange(int fromIndex, int toIndex)
 	{
-		// TODO Auto-generated method stub
 		super.removeRange(fromIndex, toIndex);
 	}
 }

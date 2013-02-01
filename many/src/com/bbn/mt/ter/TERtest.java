@@ -36,14 +36,18 @@ the Software in your possession.
 Matthew Snover (snover@cs.umd.edu)                           
 */
 
-import java.io.*;
-import java.util.regex.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.LinkedHashMap;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.w3c.dom.Document;
 
 public class TERtest {
