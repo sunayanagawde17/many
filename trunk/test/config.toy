@@ -6,7 +6,7 @@
 
 ### directory in which experiment is run
 #
-base-dir = /Users/barrault/Documents/sandbox/test_MANY
+base-dir = /lium/buster1/barrault/SRC/google_MANY/test
 working-dir = $base-dir
 
 # specification of the language pair
@@ -33,29 +33,33 @@ lm-order = 4
 # memory required for tuning/decoding (mainly LM size)
 mem = 1g
 
-# default config file name
-config-default-name = many.config.xml
-config = $base-dir/many.config.xml
+# use priors as word confidence measure?
+priors-as-confidence = false
 
 ### directories that contain tools and data
 # 
 # moses
-moses-src-dir = /Users/barrault/Documents/TOOLS/mosesdecoder/trunk
+moses-src-dir = /lium/buster1/lambert/soft/moses-2010-08-13
 # moses scripts
 moses-script-dir = $moses-src-dir/scripts
 # many
-many-src-dir = /Users/barrault/Documents/sandbox/MANY
+many-src-dir = /lium/buster1/barrault/SRC/google_MANY/many/
 # many scripts
 many-script-dir = $many-src-dir/scripts
 # many build to use
-many = /lium/buster1/barrault/RELEASE/bin/MANY_507.jar
+many = /lium/buster1/barrault/SRC/google_MANY/many/lib/MANY.jar
+# default config file name
+config-default-name = many.config.xml
+config = $base-dir/many.config.xml
 # srilm
-srilm-dir = /Users/barrault/Documents/TOOLS/srilm/bin/macosx
+srilm-dir = /lium/buster1/barrault/TOOLS/srilm/bin/i686
+# mert
+mert-dir = $moses-src-dir/mert
 
 # useful tools and data
-wordnet = /Users/barrault/Documents/TOOLS/WordNet-3.0/dict
-paraphrases = /Users/barrault/Documents/TOOLS/terp/terp.v1/data/phrases.db
-shift-word-stop-list = /Users/barrault/Documents/TOOLS/terp/terp.v1/data/shift_word_stop_list.txt
+wordnet = /lium/buster1/barrault/TOOLS/WordNet-3.0/dict
+paraphrases = /lium/buster1/barrault/TOOLS/terp/terp.v1/data/phrases.db
+shift-word-stop-list = /lium/buster1/barrault/TOOLS/terp/terp.v1/data/shift_word_stop_list.txt
 
 # use flexible matching (relax) or not (exact)
 #shift-constraint = relax
@@ -72,11 +76,13 @@ max-threads = 8
 lmserver-port = -1
 #lmserver-port = 1234
 
+# number of backbones to use in combination 
+nb-backbones = 1
 
 ### basic tools
 #
-# many decoder
-decoder = $many-src-dir/scripts/MANY.pl
+# align script
+align-script = $many-script-dir/MANYbleu.pl
 
 # tokenizers - comment out if all your data is already tokenized
 #input-tokenizer = "$moses-script-dir/tokenizer/tokenizer.perl -a -l $input-extension"
@@ -115,41 +121,6 @@ decoder = $many-src-dir/scripts/MANY.pl
 # specified here 
 cores = 8
 
-#################################################################
-# PARALLEL CORPUS PREPARATION: 
-# create a tokenized, sentence-aligned corpus, ready for training
-
-#[CORPUS]
-
-### long sentences are filtered out, since they slow down GIZA++ 
-# and are a less reliable source of data. set here the maximum
-# length of a sentence
-#
-#max-sentence-length = 80
-
-#[CORPUS:syscomb]
-
-### command to run to get raw corpus files
-#
-# get-corpus-script = 
-
-### raw corpus files (untokenized, but sentence aligned)
-# 
-#raw-stem = $syscomb-data/nc-5k
-
-### tokenized corpus files (may contain long sentences)
-#
-#tokenized-stem =
-
-### if sentence filtering should be skipped,
-# point to the clean training data
-#
-#clean-stem = 
-
-### if corpus preparation should be skipped,
-# point to the prepared training data
-#
-#lowercased-stem =  
 
 #################################################################
 # LANGUAGE MODEL TRAINING
@@ -251,6 +222,8 @@ lm = $decodlm
 
 [TUNING]
 
+do-tune-align = 0
+
 ### instead of tuning with this setting, old weights may be recycled
 # specify here an old configuration file with matching weights
 #
@@ -258,15 +231,21 @@ lm = $decodlm
 
 ### tuning script to be used
 #
+tuning-mem = 30g
 tuning-align-script = $many-script-dir/Optimize_MANYbleu.pl
 tuning-align-dir = condor_manybleu
-tuning-align:qsub-settings = "-q trad -V -l mem=$mem -l cput=1000:00:00" 
+tuning-align:qsub-settings = "-q trad -V -l mem=$tuning-mem -l cput=1000:00:00" 
 
 tuning-decoder-script = $many-script-dir/mert-manydecode.pl
+sc-config = "BLEU:1"
+#sc-config = "BLEU:1,TER:1" #this maximise (BLEU+(1-TER))/2
+#sc-config = "BLEU:3,TER:2" #this maximise (3*BLEU+2*(1-TER))/5
+#sc-config = "BLEU:4,TER:2,BP:1" #this maximise (BLEU+(1-TER)+BP)/2
+
 decoder = $many-script-dir/MANYdecode.pl
-tuning-settings = "-mertdir $moses-src-dir/mert"
+tuning-settings = "-mertdir $mert-dir"
 tuning-decoder-dir = mert_manydecode
-#tuning-decoder-flags = "--working-dir . --lm $decodlm --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens" 
+#tuning-decoder-flags = "--working-dir . --lm $decodlm --lm-order $lm-order --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens" 
 
 tuning-decoder:qsub-settings = "-q trad -V -l nodes=1:ppn=2 -l mem=$mem -l cput=1000:00:00" 
 tuning-decoder:nb-mert-runs = "1"
@@ -279,6 +258,7 @@ tuning-decoder:nb-mert-runs = "1"
 #tokenized-input = 
 #factorized-input = 
 tokenized-input = $datadir/$corpustune
+#tok-input-id = 
 
 # 
 #reference-sgm = 
@@ -300,7 +280,7 @@ nbest = 300
 
 ### additional flags for the decoder
 #
-decoder-settings = "--many $many --working-dir . --lm $decodlm --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens --lm-server-port $lmserver-port"
+decoder-settings = "--many $many --working-dir . --lm $decodlm --lm-order $lm-order --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens --lm-server-port $lmserver-port --priors-as-confidence $priors-as-confidence"
 
 ### if tuning should be skipped, specify this here
 # and also point to a configuration file that contains
@@ -314,10 +294,13 @@ decoder-settings = "--many $many --working-dir . --lm $decodlm --vocab $vocab --
 [EVALUATION]
 
 
+# MANY decoder
+decoder = $many-src-dir/scripts/MANYdecode.pl
+
 ### additional decoder settings
-# switches for the MANY decoder
+# switches for the MANYdecode decoder
 #
-decoder-settings = "--many $many --working-dir . --lm $decodlm --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens --lm-server-port $lmserver-port" 
+decoder-settings = "--many $many --working-dir . --lm $decodlm  --lm-order $lm-order --vocab $vocab --log-base $log-base --max-nb-tokens $max-nb-tokens --lm-server-port $lmserver-port --priors-as-confidence $priors-as-confidence" 
 
 ### specify size of n-best list, if produced
 #
