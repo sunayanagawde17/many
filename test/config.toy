@@ -76,8 +76,8 @@ max-threads = 8
 lmserver-port = -1
 #lmserver-port = 1234
 
-# number of backbones to use in combination 
-nb-backbones = 1
+# number of backbones to use in combination -- MUST be set to the number of systems to combine (not yet working) 
+nb-backbones = 3
 
 ### basic tools
 #
