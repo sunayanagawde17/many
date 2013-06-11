@@ -39,7 +39,7 @@ priors-as-confidence = false
 ### directories that contain tools and data
 # 
 # moses
-moses-src-dir = /lium/buster1/lambert/soft/moses-2010-08-13
+moses-src-dir = /opt/mt/mosesdecoder
 # moses scripts
 moses-script-dir = $moses-src-dir/scripts
 # many
@@ -54,7 +54,7 @@ config = $base-dir/many.config.xml
 # srilm
 srilm-dir = /lium/buster1/barrault/TOOLS/srilm/bin/i686
 # mert
-mert-dir = $moses-src-dir/mert
+mert-dir = /lium/buster1/barrault/TOOLS/moses-2010-08-13/mert.TERCPP
 
 # useful tools and data
 wordnet = /lium/buster1/barrault/TOOLS/WordNet-3.0/dict
